@@ -8,6 +8,23 @@ var connectionString =
     ?? builder.Configuration["DATABASE_URL"]
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
+var source = "none";
+if (!string.IsNullOrWhiteSpace(builder.Configuration["SUPABASE_DB_CONNECTION"]))
+{
+    source = "SUPABASE_DB_CONNECTION";
+}
+else if (!string.IsNullOrWhiteSpace(builder.Configuration["DATABASE_URL"]))
+{
+    source = "DATABASE_URL";
+}
+else if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("DefaultConnection")))
+{
+    source = "ConnectionStrings:DefaultConnection";
+}
+
+Console.WriteLine($"[DEBUG] connectionString present: {!string.IsNullOrWhiteSpace(connectionString)}");
+Console.WriteLine($"[DEBUG] connectionString source: {source}");
+
 if (string.IsNullOrWhiteSpace(connectionString) || HasPlaceholderConnectionString(connectionString))
 {
     throw new InvalidOperationException(
@@ -22,7 +39,6 @@ static bool HasPlaceholderConnectionString(string value)
 }
 
 // Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
