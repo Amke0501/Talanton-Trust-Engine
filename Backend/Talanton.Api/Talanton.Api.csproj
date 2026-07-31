@@ -4,7 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+<<<<<<< HEAD
     <UserSecretsId>3bd92c7a-2e05-47ae-9fb3-e20c9f357e96</UserSecretsId>
+=======
+    <UserSecretsId>e6469a47-f7a4-471d-8aff-f694950bb9a4</UserSecretsId>
+>>>>>>> develop
   </PropertyGroup>
 
   <ItemGroup>
