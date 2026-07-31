@@ -2,11 +2,21 @@ using Microsoft.EntityFrameworkCore;
 using Talanton.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendPolicy", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
-var connectionString =
-    builder.Configuration["SUPABASE_DB_CONNECTION"]
-    ?? builder.Configuration["DATABASE_URL"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = FirstNonEmpty(
+    builder.Configuration["SUPABASE_DB_CONNECTION"],
+    builder.Configuration["DATABASE_URL"],
+    builder.Configuration.GetConnectionString("DefaultConnection"));
 
 var source = "none";
 if (!string.IsNullOrWhiteSpace(builder.Configuration["SUPABASE_DB_CONNECTION"]))
@@ -22,9 +32,6 @@ else if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("D
     source = "ConnectionStrings:DefaultConnection";
 }
 
-Console.WriteLine($"[DEBUG] connectionString present: {!string.IsNullOrWhiteSpace(connectionString)}");
-Console.WriteLine($"[DEBUG] connectionString source: {source}");
-
 if (string.IsNullOrWhiteSpace(connectionString) || HasPlaceholderConnectionString(connectionString))
 {
     throw new InvalidOperationException(
@@ -38,8 +45,23 @@ static bool HasPlaceholderConnectionString(string value)
         || value.Contains("__SET_IN_ENV_OR_USE_SUPABASE_DB_CONNECTION__", StringComparison.OrdinalIgnoreCase);
 }
 
+static string? FirstNonEmpty(params string?[] values)
+{
+    foreach (var value in values)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+    }
+
+    return null;
+}
+
 // Add services to the container.
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
         npgsqlOptions.EnableRetryOnFailure()));
@@ -52,30 +74,21 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseCors("FrontendPolicy");
+
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.MapControllers();
 
-app.MapGet("/weatherforecast", () =>
+app.MapGet("/", () =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    return Results.Ok(new
+    {
+        Application = "Talanton Trust Engine API",
+        Status = "Running",
+        Environment = app.Environment.EnvironmentName,
+        Timestamp = DateTime.UtcNow
+    });
+});
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
