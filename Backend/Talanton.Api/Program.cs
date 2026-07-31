@@ -1,34 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Talanton.Api.Data;
-
-var builder = WebApplication.CreateBuilder(args);
-
-var connectionString =
-    builder.Configuration["SUPABASE_DB_CONNECTION"]
-    ?? builder.Configuration["DATABASE_URL"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
-
-if (string.IsNullOrWhiteSpace(connectionString) || HasPlaceholderConnectionString(connectionString))
-{
-    throw new InvalidOperationException(
-        "No valid PostgreSQL connection string configured. Set SUPABASE_DB_CONNECTION (recommended) or ConnectionStrings:DefaultConnection.");
-}
-
-static bool HasPlaceholderConnectionString(string value)
-{
-    return value.Contains("YOUR_SUPABASE_HOST", StringComparison.OrdinalIgnoreCase)
-        || value.Contains("__SET_IN_ENV__", StringComparison.OrdinalIgnoreCase)
-        || value.Contains("__SET_IN_ENV_OR_USE_SUPABASE_DB_CONNECTION__", StringComparison.OrdinalIgnoreCase);
-}
-
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-        npgsqlOptions.EnableRetryOnFailure()));
-
-var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -37,15 +6,40 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.MapControllers();
+
 
 var summaries = new[]
 {
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
-app.MapGet("/weatherforecast", () =>
+app.MapGet("/weatherforecast", () =using Microsoft.EntityFrameworkCore;
+using Talanton.Api.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var envConnection = Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION");
+Console.WriteLine($"Environment variable: {envConnection}");
+
+var configConnection = builder.Configuration["SUPABASE_DB_CONNECTION"];
+Console.WriteLine($"Configuration variable: {configConnection}");
+
+var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine($"Default connection: {defaultConnection}");
+
+var connectionString =
+    envConnection
+    ?? configConnection
+    ?? builder.Configuration["DATABASE_URL"]
+    ?? defaultConnection;
+
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
+    throw new InvalidOperationException("No connection string found.");
+}
+{
+    var forecast = Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
         (
             DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
