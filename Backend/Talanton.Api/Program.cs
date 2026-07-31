@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Talanton.Api.Data;
+using Talanton.Api.Repositories;
+using Talanton.Api.Repositories.Interfaces;
+using Talanton.Api.Services;
+using Talanton.Api.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,11 +46,13 @@ if (string.IsNullOrWhiteSpace(connectionString) || HasPlaceholderConnectionStrin
         "No valid PostgreSQL connection string configured. Set SUPABASE_DB_CONNECTION or ConnectionStrings:DefaultConnection.");
 }
 
-builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql =>
         npgsql.EnableRetryOnFailure()));
+
+builder.Services.AddScoped<IApplicantRepository, ApplicantRepository>();
+builder.Services.AddScoped<IApplicantService, ApplicantService>();
 
 var app = builder.Build();
 
