@@ -20,9 +20,9 @@ const fraunces = Fraunces({
 })
 
 export const metadata: Metadata = {
-  title: 'Talenton — SACCO Credit Pipeline',
+  title: 'Talanton — SACCO Credit Pipeline',
   description:
-    'Talenton helps SACCOs lend to high-yield SMEs with confidence through cash-flow-based vetting and milestone-gated disbursement. Growth through safety.',
+    'Talanton helps SACCOs lend to high-yield SMEs with confidence through cash-flow-based vetting and milestone-gated disbursement. Growth through safety.',
   generator: 'v0.app',
 }
 

@@ -23,7 +23,7 @@ export function AppHeader({
         </span>
         <div>
           <p className="font-serif text-lg font-semibold leading-none tracking-tight text-foreground">
-            Talenton
+            Talanton
           </p>
           <p className="mt-1 text-[0.7rem] font-medium uppercase tracking-widest text-muted-foreground">
             SACCO Credit Pipeline

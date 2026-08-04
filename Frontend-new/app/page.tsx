@@ -8,7 +8,7 @@ export default function LandingPage() {
       <nav className="absolute top-0 inset-x-0 p-6 flex items-center justify-between z-50">
         <div className="flex items-center gap-2">
           <span className="font-serif text-2xl font-bold tracking-tight">
-            Talenton<span className="text-[#a4cc44]">.</span>
+            Talanton<span className="text-[#a4cc44]">.</span>
           </span>
         </div>
 
@@ -50,7 +50,7 @@ export default function LandingPage() {
         </h1>
         
         <p className="mt-8 text-lg sm:text-xl text-[#2a5040]/80 max-w-2xl mx-auto leading-relaxed">
-          Talenton offers secure credit access to SACCO members with the lowest-risk
+          Talanton offers secure credit access to SACCO members with the lowest-risk
           and lowest cost to cooperatives in the market.
         </p>
 

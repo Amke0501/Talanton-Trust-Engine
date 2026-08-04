@@ -106,8 +106,8 @@ var __TURBOPACK__imported__module__$5b$next$5d2f$internal$2f$font$2f$google$2f$f
 ;
 ;
 const metadata = {
-    title: 'Talenton — SACCO Credit Pipeline',
-    description: 'Talenton helps SACCOs lend to high-yield SMEs with confidence through cash-flow-based vetting and milestone-gated disbursement. Growth through safety.',
+    title: 'Talanton — SACCO Credit Pipeline',
+    description: 'Talanton helps SACCOs lend to high-yield SMEs with confidence through cash-flow-based vetting and milestone-gated disbursement. Growth through safety.',
     generator: 'v0.app'
 };
 const viewport = {
