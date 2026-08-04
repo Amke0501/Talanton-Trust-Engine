@@ -5,7 +5,7 @@ import {
   SEED_PASSPORT_MEMBERS,
 } from './talenton-data'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5195/api'
 
 export async function fetchApplications(): Promise<Application[]> {
   try {

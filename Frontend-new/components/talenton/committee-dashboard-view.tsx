@@ -126,7 +126,11 @@ export function CommitteeDashboardView({
                 </div>
                 <div className="flex justify-between items-center py-1.5 border-b border-border/50">
                   <span className="text-muted-foreground">Audit Check Verdict</span>
-                  <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[0.65rem] font-bold text-rose-800">
+                  <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold ${
+                    application.verdict === 'APPROVED'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}>
                     {application.verdict || 'DECLINED'}
                   </span>
                 </div>
@@ -269,11 +273,11 @@ export function CommitteeDashboardView({
           <div className="flex flex-wrap gap-2">
             {[
               { id: 'ALL', label: `All (${portfolioLoans.length})` },
-              { id: 'PENDING', label: 'Pending (2)' },
-              { id: 'APPROVED', label: 'Approved (1)' },
-              { id: 'ACTIVE', label: 'Active (2)' },
-              { id: 'COMPLETED', label: 'Completed (1)' },
-              { id: 'REJECTED', label: 'Rejected (1)' },
+              { id: 'PENDING', label: `Pending (${portfolioLoans.filter(l => l.status === 'PENDING').length})` },
+              { id: 'APPROVED', label: `Approved (${portfolioLoans.filter(l => l.status === 'APPROVED').length})` },
+              { id: 'ACTIVE', label: `Active (${portfolioLoans.filter(l => l.status === 'REPAYING').length})` },
+              { id: 'COMPLETED', label: `Completed (${portfolioLoans.filter(l => l.status === 'COMPLETED').length})` },
+              { id: 'REJECTED', label: `Rejected (${portfolioLoans.filter(l => l.status === 'REJECTED').length})` },
             ].map((tab) => (
               <button
                 key={tab.id}

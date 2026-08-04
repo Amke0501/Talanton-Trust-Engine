@@ -94,6 +94,22 @@ export function ApplicantDashboardView({
     onUpdateApplication({ documents: updated })
   }
 
+  function handleSubmit() {
+    const issues: string[] = []
+    if (savings <= 0) issues.push('Savings balance must be greater than 0')
+    if (principal <= 0) issues.push('Loan principal must be greater than 0')
+    if (monthlyPay <= 0) issues.push('Monthly income / net pay must be greater than 0')
+    const mandatoryUncleared = documents.filter((d) => d.required && d.status !== 'VERIFIED')
+    if (mandatoryUncleared.length > 0) {
+      issues.push(`${mandatoryUncleared.length} mandatory document(s) not yet verified: ${mandatoryUncleared.map(d => d.label).join(', ')}`)
+    }
+    if (issues.length > 0) {
+      alert('Cannot submit — please fix the following:\n\n• ' + issues.join('\n• '))
+      return
+    }
+    onSubmitToUnderwriter()
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-12">
       {/* LEFT COLUMN: Entry Form & OCR Extractor */}
@@ -345,7 +361,7 @@ export function ApplicantDashboardView({
         {/* Submit to Underwriter Button */}
         <button
           type="button"
-          onClick={onSubmitToUnderwriter}
+          onClick={handleSubmit}
           className="w-full flex items-center justify-center gap-3 rounded-full bg-[#103a27] py-4 text-sm font-bold text-white shadow-xl hover:bg-[#1a5235] transition-all hover:scale-[1.01]"
         >
           <Send className="size-4" />

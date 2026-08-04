@@ -158,7 +158,7 @@ public class LoanApplicationService : ILoanApplicationService
         },
         new LoanApplicationDto
         {
-            Id = Guid.Parse("803g0000-0000-0000-0000-000000000007"),
+            Id = Guid.Parse("80300000-0000-0000-0000-000000000007"),
             Reference = "LA-2025-0803G",
             ApplicantName = "Okello Trading Co.",
             MemberId = "SME-1189",

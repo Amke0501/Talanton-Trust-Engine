@@ -55,7 +55,7 @@ export function UnderwriterDashboardView({
   const oneThirdPayPassed = residualNetPay >= minOneThirdReq
   
   const totalPledged = guarantors.reduce((sum, g) => sum + g.pledgedShares, 0)
-  const unsecuredExposure = Math.Max ? Math.max(0, requestedCapital - savingsBalance) : 11_000_000
+  const unsecuredExposure = Math.max(0, requestedCapital - savingsBalance)
   const guarantorCoverPassed = totalPledged >= unsecuredExposure
 
   const overallDeclined = !depositMultiplierPassed || !oneThirdPayPassed
@@ -438,7 +438,28 @@ export function UnderwriterDashboardView({
 
             <button
               type="button"
-              onClick={onRouteToCommittee}
+              onClick={() => {
+                // Flush all computed underwriting values into shared application state
+                // so the Committee frozen stats panel reads live numbers, not seed data
+                onUpdateApplication({
+                  multiplier,
+                  tenureMonths: tenure,
+                  principal: requestedCapital,
+                  savingsBalance,
+                  monthlyIncome: basicPay,
+                  monthlyDebt: monthlyDeductions,
+                  basicMonthlyPay: basicPay,
+                  monthlyDeductions,
+                  dtiNetRatio: dtiRatio,
+                  netTakeHome: residualNetPay,
+                  guardrailDepositMultiplierPassed: depositMultiplierPassed,
+                  guardrailOneThirdPayPassed: oneThirdPayPassed,
+                  guardrailGuarantorPassed: guarantorCoverPassed,
+                  verdict: overallDeclined ? 'DECLINED' : 'APPROVED',
+                  guarantors,
+                })
+                onRouteToCommittee()
+              }}
               className="w-full flex items-center justify-center gap-2 rounded-full bg-[#103a27] py-3.5 text-xs font-bold text-white shadow-md hover:bg-[#1a5235] transition-all"
             >
               <Send className="size-3.5" />
