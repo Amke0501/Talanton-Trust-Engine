@@ -32,7 +32,7 @@ export default function SignupPage() {
               Create an account
             </h1>
             <p className="text-center text-[#2a5040]/60 text-base mb-12">
-              Join Talenton to access secure credit
+              Join Talanton to access secure credit
             </p>
 
             <form onSubmit={handleSignup} className="space-y-7">
