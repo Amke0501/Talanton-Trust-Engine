@@ -1,7 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Talanton.Api.Data;
+using Talanton.Api.Repositories;
+using Talanton.Api.Repositories.Interfaces;
+using Talanton.Api.Services;
+using Talanton.Api.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
@@ -32,11 +37,47 @@ else if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("D
     source = "ConnectionStrings:DefaultConnection";
 }
 
+Console.WriteLine($"[DEBUG] connectionString present: {!string.IsNullOrWhiteSpace(connectionString)}");
+Console.WriteLine($"[DEBUG] connectionString source: {source}");
+
 if (string.IsNullOrWhiteSpace(connectionString) || HasPlaceholderConnectionString(connectionString))
 {
     throw new InvalidOperationException(
-        "No valid PostgreSQL connection string configured. Set SUPABASE_DB_CONNECTION (recommended) or ConnectionStrings:DefaultConnection.");
+        "No valid PostgreSQL connection string configured. Set SUPABASE_DB_CONNECTION or ConnectionStrings:DefaultConnection.");
 }
+
+builder.Services.AddControllers();
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString, npgsql =>
+        npgsql.EnableRetryOnFailure()));
+
+builder.Services.AddScoped<IApplicantRepository, ApplicantRepository>();
+builder.Services.AddScoped<IApplicantService, ApplicantService>();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseCors("FrontendPolicy");
+app.UseHttpsRedirection();
+
+app.MapControllers();
+
+app.MapGet("/", () =>
+{
+    return Results.Ok(new
+    {
+        Application = "Talanton Trust Engine API",
+        Status = "Running",
+        Environment = app.Environment.EnvironmentName,
+        Timestamp = DateTime.UtcNow
+    });
+});
+
+app.Run();
 
 static bool HasPlaceholderConnectionString(string value)
 {
@@ -57,38 +98,3 @@ static string? FirstNonEmpty(params string?[] values)
 
     return null;
 }
-
-// Add services to the container.
-builder.Services.AddOpenApi();
-builder.Services.AddControllers();
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-        npgsqlOptions.EnableRetryOnFailure()));
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
-app.UseCors("FrontendPolicy");
-
-app.UseHttpsRedirection();
-
-app.MapControllers();
-
-app.MapGet("/", () =>
-{
-    return Results.Ok(new
-    {
-        Application = "Talanton Trust Engine API",
-        Status = "Running",
-        Environment = app.Environment.EnvironmentName,
-        Timestamp = DateTime.UtcNow
-    });
-});
-
-app.Run();
