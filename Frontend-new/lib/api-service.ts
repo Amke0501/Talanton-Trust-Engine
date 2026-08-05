@@ -5,7 +5,25 @@ import {
   SEED_PASSPORT_MEMBERS,
 } from './talenton-data'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5195/api'
+function resolveApiBaseUrl(rawUrl: string): string {
+  const trimmed = rawUrl.replace(/\/+$/, '')
+
+  try {
+    const parsed = new URL(trimmed)
+    const path = parsed.pathname.replace(/\/+$/, '')
+
+    if (path === '' || path === '/') {
+      parsed.pathname = '/api'
+      return parsed.toString().replace(/\/+$/, '')
+    }
+
+    return trimmed
+  } catch {
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5195/api')
 
 export async function fetchApplications(): Promise<Application[]> {
   try {
