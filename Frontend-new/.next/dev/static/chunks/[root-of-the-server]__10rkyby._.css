@@ -378,6 +378,7 @@
     --container-md: 28rem;
     --container-5xl: 64rem;
     --container-6xl: 72rem;
+    --container-7xl: 80rem;
     --text-xs: .75rem;
     --text-xs--line-height: calc(1 / .75);
     --text-sm: .875rem;
@@ -779,6 +780,14 @@
     right: calc(var(--spacing) * 3);
   }
 
+  .right-4 {
+    right: calc(var(--spacing) * 4);
+  }
+
+  .bottom-0 {
+    bottom: 0;
+  }
+
   .bottom-5 {
     bottom: calc(var(--spacing) * 5);
   }
@@ -797,6 +806,10 @@
 
   .z-10 {
     z-index: 10;
+  }
+
+  .z-40 {
+    z-index: 40;
   }
 
   .z-50 {
@@ -942,6 +955,10 @@
     height: calc(var(--spacing) * 11);
   }
 
+  .h-12 {
+    height: calc(var(--spacing) * 12);
+  }
+
   .h-\[18px\] {
     height: 18px;
   }
@@ -962,6 +979,10 @@
     width: calc(var(--spacing) * .5);
   }
 
+  .w-12 {
+    width: calc(var(--spacing) * 12);
+  }
+
   .w-\[18px\] {
     width: 18px;
   }
@@ -980,6 +1001,10 @@
 
   .max-w-6xl {
     max-width: var(--container-6xl);
+  }
+
+  .max-w-7xl {
+    max-width: var(--container-7xl);
   }
 
   .max-w-md {
@@ -1007,8 +1032,16 @@
     cursor: not-allowed;
   }
 
+  .scroll-mt-28 {
+    scroll-margin-top: calc(var(--spacing) * 28);
+  }
+
   .appearance-none {
     appearance: none;
+  }
+
+  .grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .grid-cols-2 {
@@ -1169,6 +1202,12 @@
     }
   }
 
+  .truncate {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
   .overflow-hidden {
     overflow: hidden;
   }
@@ -1209,6 +1248,11 @@
     border-radius: calc(var(--radius) * 1.4);
   }
 
+  .rounded-t-2xl {
+    border-top-left-radius: calc(var(--radius) * 1.8);
+    border-top-right-radius: calc(var(--radius) * 1.8);
+  }
+
   .border {
     border-style: var(--tw-border-style);
     border-width: 1px;
@@ -1232,6 +1276,10 @@
   .border-dashed {
     --tw-border-style: dashed;
     border-style: dashed;
+  }
+
+  .border-\[\#103a27\] {
+    border-color: #103a27;
   }
 
   .border-\[\#103a27\]\/20 {
@@ -1259,6 +1307,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .border-black\/5 {
       border-color: color-mix(in oklab, var(--color-black) 5%, transparent);
+    }
+  }
+
+  .border-black\/10 {
+    border-color: #0000001a;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .border-black\/10 {
+      border-color: color-mix(in oklab, var(--color-black) 10%, transparent);
     }
   }
 
@@ -1471,6 +1529,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-black\/10 {
       background-color: color-mix(in oklab, var(--color-black) 10%, transparent);
+    }
+  }
+
+  .bg-black\/30 {
+    background-color: #0000004d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-black\/30 {
+      background-color: color-mix(in oklab, var(--color-black) 30%, transparent);
     }
   }
 
@@ -1846,6 +1914,10 @@
 
   .pt-2 {
     padding-top: calc(var(--spacing) * 2);
+  }
+
+  .pt-4 {
+    padding-top: calc(var(--spacing) * 4);
   }
 
   .pt-5 {
@@ -2707,6 +2779,10 @@
       height: calc(var(--spacing) * .5);
     }
 
+    .sm\:w-auto {
+      width: auto;
+    }
+
     .sm\:w-full {
       width: 100%;
     }
@@ -2764,8 +2840,20 @@
       gap: 0;
     }
 
+    .sm\:gap-3 {
+      gap: calc(var(--spacing) * 3);
+    }
+
+    .sm\:gap-4 {
+      gap: calc(var(--spacing) * 4);
+    }
+
     .sm\:p-6 {
       padding: calc(var(--spacing) * 6);
+    }
+
+    .sm\:px-4 {
+      padding-inline: calc(var(--spacing) * 4);
     }
 
     .sm\:px-6 {
@@ -2778,6 +2866,11 @@
 
     .sm\:text-center {
       text-align: center;
+    }
+
+    .sm\:text-3xl {
+      font-size: var(--text-3xl);
+      line-height: var(--tw-leading, var(--text-3xl--line-height));
     }
   }
 
@@ -2806,8 +2899,16 @@
       grid-column: span 8 / span 8;
     }
 
+    .lg\:col-span-12 {
+      grid-column: span 12 / span 12;
+    }
+
     .lg\:grid-cols-3 {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .lg\:grid-cols-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .lg\:grid-cols-12 {
@@ -2832,6 +2933,18 @@
 
     .lg\:overflow-visible {
       overflow: visible;
+    }
+
+    .lg\:px-4 {
+      padding-inline: calc(var(--spacing) * 4);
+    }
+
+    .lg\:px-8 {
+      padding-inline: calc(var(--spacing) * 8);
+    }
+
+    .lg\:pt-6 {
+      padding-top: calc(var(--spacing) * 6);
     }
 
     .lg\:pb-0 {
