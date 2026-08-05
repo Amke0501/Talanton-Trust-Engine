@@ -85,29 +85,31 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
         active: 'home' as NavItem,
         allowedItems: ['home', 'applications', 'profile'] as NavItem[],
         labels: {
-          home: 'Dashboard',
+          home: 'Applicant Dashboard',
           applications: 'Loan Applications',
-          profile: 'My Profile',
+          profile: 'Profile',
         },
       }
     }
 
     if (role === 'underwriter') {
       return {
-        active: 'applications' as NavItem,
-        allowedItems: ['applications', 'profile'] as NavItem[],
+        active: 'home' as NavItem,
+        allowedItems: ['home', 'applications', 'profile'] as NavItem[],
         labels: {
-          applications: 'Loan Review',
+          home: 'Underwriter Dashboard',
+          applications: 'Loan Reviews',
           profile: 'Credit Passport',
         },
       }
     }
 
     return {
-      active: 'settings' as NavItem,
-      allowedItems: ['settings', 'profile'] as NavItem[],
+      active: 'home' as NavItem,
+      allowedItems: ['home', 'settings', 'profile'] as NavItem[],
       labels: {
-        settings: 'Approvals',
+        home: 'Committee Dashboard',
+        settings: 'Committee Approval',
         profile: 'Credit Passport',
       },
     }

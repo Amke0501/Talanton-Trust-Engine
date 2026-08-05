@@ -1,6 +1,8 @@
 import type { RoleType } from '@/lib/talenton-data'
 
 export const ROLE_COOKIE_NAME = 'talanton_role'
+export const AUTH_COOKIE_NAME = 'talanton_auth'
+export const USER_EMAIL_COOKIE_NAME = 'talanton_email'
 
 const VALID_ROLES: RoleType[] = ['applicant', 'underwriter', 'committee']
 
