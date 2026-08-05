@@ -17,6 +17,7 @@ import {
   type Guarantor,
 } from '@/lib/talenton-data'
 import { Card, CardBody } from '@/components/talenton/primitives'
+import { CreditPassportPanel } from '@/components/talenton/credit-passport-panel'
 
 export function UnderwriterDashboardView({
   application,
@@ -112,7 +113,7 @@ export function UnderwriterDashboardView({
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
                   Multiplier
@@ -141,7 +142,7 @@ export function UnderwriterDashboardView({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
                   Requested Capital (UGX)
@@ -167,7 +168,7 @@ export function UnderwriterDashboardView({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
                   Basic Monthly Pay
@@ -229,7 +230,7 @@ export function UnderwriterDashboardView({
                     <p className="text-xs font-bold text-foreground">
                       {g.name} <span className="text-muted-foreground">({g.memberId})</span>
                     </p>
-                    <div className="mt-1 flex gap-4 text-[0.65rem] text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap gap-2 text-[0.65rem] text-muted-foreground sm:gap-4">
                       <span>PLEDGED (UGX): <strong className="text-[#103a27]">{g.pledgedShares.toLocaleString()}</strong></span>
                       <span>AVAILABLE SHARES: <strong className="text-emerald-700">{(g.availableShares || g.pledgedShares).toLocaleString()}</strong></span>
                     </div>
@@ -282,7 +283,7 @@ export function UnderwriterDashboardView({
           </div>
 
           {/* Key Metric Tiles */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-white/5 p-3.5 border border-white/10">
               <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">
                 DTI NET RATIO
@@ -423,7 +424,7 @@ export function UnderwriterDashboardView({
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-xs pt-1">
+            <div className="grid grid-cols-1 gap-4 text-xs pt-1 sm:grid-cols-2">
               <div>
                 <span className="text-muted-foreground block text-[0.65rem]">Appraisal Officer:</span>
                 <span className="font-semibold text-foreground">Agaba Collins (Risk Division)</span>
@@ -529,6 +530,10 @@ export function UnderwriterDashboardView({
           </div>
         </div>
       )}
+
+      <div className="lg:col-span-12">
+        <CreditPassportPanel />
+      </div>
     </div>
   )
 }

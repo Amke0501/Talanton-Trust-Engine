@@ -2,6 +2,7 @@ import {
   type Application,
   type CreditPassportMember,
   INITIAL_APPLICATION,
+  type RoleType,
   SEED_PASSPORT_MEMBERS,
 } from './talenton-data'
 
@@ -24,6 +25,17 @@ function resolveApiBaseUrl(rawUrl: string): string {
 }
 
 const API_BASE_URL = resolveApiBaseUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5195/api')
+
+function getDemoLoginApiCandidates(): string[] {
+  const candidates = [API_BASE_URL]
+
+  // Keep demo auth usable in local runs even when NEXT_PUBLIC_API_URL points to a deployed API.
+  if (!API_BASE_URL.includes('localhost:5195')) {
+    candidates.push('http://localhost:5195/api')
+  }
+
+  return candidates
+}
 
 export async function fetchApplications(): Promise<Application[]> {
   try {
@@ -115,5 +127,77 @@ export async function castCommitteeVote(
   } catch (err) {
     console.warn('Failed to cast vote via API.', err)
     return false
+  }
+}
+
+export type DemoLoginPayload = {
+  email: string
+  password: string
+  portalRole: RoleType
+}
+
+export type DemoLoginResponse = {
+  email: string
+  fullName: string
+  role: RoleType
+}
+
+export async function demoLogin(payload: DemoLoginPayload): Promise<{
+  success: boolean
+  data?: DemoLoginResponse
+  message?: string
+}> {
+  const candidates = getDemoLoginApiCandidates()
+  let lastErrorMessage = 'Unable to connect to the server. Please try again.'
+
+  for (const baseUrl of candidates) {
+    try {
+      const res = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: payload.email,
+          password: payload.password,
+          portalRole: payload.portalRole,
+        }),
+      })
+
+      const text = await res.text()
+      let body: any = null
+
+      try {
+        body = text ? JSON.parse(text) : null
+      } catch {
+        body = null
+      }
+
+      if (!res.ok) {
+        if (res.status === 404 && baseUrl !== candidates[candidates.length - 1]) {
+          continue
+        }
+
+        return {
+          success: false,
+          message: body?.message || 'Unable to sign in. Please try again.',
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          email: body.email,
+          fullName: body.fullName,
+          role: body.role,
+        },
+      }
+    } catch (err) {
+      console.warn(`Login request failed for ${baseUrl}.`, err)
+      lastErrorMessage = 'Unable to connect to the server. Please try again.'
+    }
+  }
+
+  return {
+    success: false,
+    message: lastErrorMessage,
   }
 }
