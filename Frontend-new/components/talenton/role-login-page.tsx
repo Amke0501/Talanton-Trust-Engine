@@ -11,32 +11,26 @@ import {
 } from '@/lib/role-access'
 import type { RoleType } from '@/lib/talenton-data'
 
-const DEMO_CREDENTIALS: Record<RoleType, { email: string; password: string; title: string }> = {
+const ROLE_PORTAL_META: Record<RoleType, { title: string }> = {
   applicant: {
-    email: 'applicant@talanton.demo',
-    password: 'Demo123!',
     title: 'Applicant Portal',
   },
   underwriter: {
-    email: 'underwriter@talanton.demo',
-    password: 'Demo123!',
     title: 'Underwriter Portal',
   },
   committee: {
-    email: 'committee@talanton.demo',
-    password: 'Demo123!',
     title: 'Committee Portal',
   },
 }
 
 export function RoleLoginPage({ role }: { role: RoleType }) {
   const router = useRouter()
-  const [email, setEmail] = useState(DEMO_CREDENTIALS[role].email)
-  const [password, setPassword] = useState(DEMO_CREDENTIALS[role].password)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const pageTitle = useMemo(() => DEMO_CREDENTIALS[role].title, [role])
+  const pageTitle = useMemo(() => ROLE_PORTAL_META[role].title, [role])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -65,9 +59,9 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
   return (
     <main className="min-h-screen bg-[#eaf4e5] px-4 py-10 text-[#103a27] sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-md rounded-2xl border border-[#103a27]/15 bg-white p-6 shadow-sm sm:p-7">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#6c8f79]">Talanton Demo Access</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#6c8f79]">Talanton Trust Engine</p>
         <h1 className="mt-2 font-serif text-3xl font-bold tracking-tight">{pageTitle}</h1>
-        <p className="mt-2 text-sm text-[#2a5040]/80">Sign in using your role-specific demo account.</p>
+        <p className="mt-2 text-sm text-[#2a5040]/80">Sign in securely to access your workspace.</p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-1.5">
@@ -77,6 +71,8 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               required
+              autoComplete="email"
+              placeholder="Enter your email"
               className="w-full rounded-xl border border-[#103a27]/20 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#103a27]"
             />
           </label>
@@ -88,6 +84,8 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               required
+              autoComplete="current-password"
+              placeholder="Enter your password"
               className="w-full rounded-xl border border-[#103a27]/20 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#103a27]"
             />
           </label>
@@ -106,12 +104,6 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <div className="mt-6 rounded-xl border border-[#103a27]/15 bg-[#f5faf2] p-3 text-xs text-[#2a5040]/85">
-          <p className="font-semibold">Demo credentials</p>
-          <p className="mt-1">Email: {DEMO_CREDENTIALS[role].email}</p>
-          <p>Password: {DEMO_CREDENTIALS[role].password}</p>
-        </div>
 
         <Link href="/" className="mt-5 inline-block text-sm font-semibold text-[#103a27] hover:underline">
           Back to role selection
