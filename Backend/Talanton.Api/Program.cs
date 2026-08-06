@@ -12,7 +12,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173", "http://localhost:3000")
+            .WithOrigins("http://localhost:5173", "http://localhost:3000","http://localhost:3001","https://talanton-trust-engine.vercel.app",
+"https://talanton-trust-engine-7.onrender.com")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
