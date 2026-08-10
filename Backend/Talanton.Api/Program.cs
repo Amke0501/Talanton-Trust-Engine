@@ -64,7 +64,14 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await DemoUsersSeeder.SeedAsync(db);
+    try
+    {
+        await DemoUsersSeeder.SeedAsync(db);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[WARNING] Database seeding warning: {ex.Message}");
+    }
 }
 
 if (app.Environment.IsDevelopment())

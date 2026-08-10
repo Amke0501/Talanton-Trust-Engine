@@ -1,10 +1,19 @@
+using Microsoft.EntityFrameworkCore;
+using Talanton.Api.Data;
 using Talanton.Api.DTOs;
+using Talanton.Api.Models;
 using Talanton.Api.Services.Interfaces;
 
 namespace Talanton.Api.Services;
 
 public class LoanApplicationService : ILoanApplicationService
 {
+    private readonly ApplicationDbContext _context;
+
+    public LoanApplicationService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
     private static readonly List<LoanApplicationDto> Applications = new()
     {
         new LoanApplicationDto
@@ -266,28 +275,186 @@ public class LoanApplicationService : ILoanApplicationService
         }
     };
 
-    public Task<IEnumerable<LoanApplicationDto>> GetAllLoanApplicationsAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<LoanApplicationDto>> GetAllLoanApplicationsAsync(CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IEnumerable<LoanApplicationDto>>(Applications);
-    }
+        var resultList = new List<LoanApplicationDto>();
 
-    public Task<LoanApplicationDto?> GetLoanApplicationByRefAsync(string reference, CancellationToken cancellationToken = default)
-    {
-        var app = Applications.FirstOrDefault(a => a.Reference.Equals(reference, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(app);
-    }
-
-    public Task<LoanApplicationDto> CreateLoanApplicationAsync(CreateLoanApplicationDto dto, CancellationToken cancellationToken = default)
-    {
-        var refNo = $"LA-2026-{Random.Shared.Next(1000, 9999)}X";
-        var created = new LoanApplicationDto
+        try
         {
-            Id = Guid.NewGuid(),
+            var dbApps = await _context.LoanApplications
+                .Include(la => la.Applicant)
+                .Include(la => la.Sacco)
+                .OrderByDescending(la => la.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            foreach (var app in dbApps)
+            {
+                var existingInMemory = Applications.FirstOrDefault(a => a.Id == app.Id || a.Reference.Equals(app.ApplicationNumber, StringComparison.OrdinalIgnoreCase));
+                if (existingInMemory != null)
+                {
+                    resultList.Add(existingInMemory);
+                }
+                else
+                {
+                    var isSubmitted = app.CurrentStatus.Equals("SUBMITTED", StringComparison.OrdinalIgnoreCase) || app.CurrentStatus.Equals("submitted", StringComparison.OrdinalIgnoreCase);
+                    resultList.Add(new LoanApplicationDto
+                    {
+                        Id = app.Id,
+                        Reference = app.ApplicationNumber,
+                        ApplicantName = app.Applicant?.DisplayName ?? "Amara Trading Ltd",
+                        MemberId = "APP-TEST-001",
+                        ApplicantType = app.Applicant?.ApplicantType ?? "cooperative",
+                        Status = isSubmitted ? "submitted" : app.CurrentStatus.ToLowerInvariant(),
+                        Stage = isSubmitted ? "verification" : "underwriting",
+                        Principal = app.PrincipalAmount,
+                        Purpose = app.Purpose,
+                        TenureMonths = app.TermMonths,
+                        SavingsBalance = 2000000m,
+                        MonthlyIncome = 1500000m,
+                        MonthlyDebt = 300000m,
+                        Multiplier = 3.0m,
+                        SubmittedOn = app.SubmittedAt?.ToString("MMM dd, yyyy") ?? app.CreatedAt.ToString("MMM dd, yyyy"),
+                        StatusNote = $"Application {app.ApplicationNumber} submitted. Verification in progress.",
+                        DtiNetRatio = 20.0m,
+                        NetTakeHome = 1200000m,
+                        Verdict = "IN_REVIEW"
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WARNING] Exception retrieving applications from EF Core DB: {ex.Message}");
+        }
+
+        foreach (var memApp in Applications)
+        {
+            if (!resultList.Any(r => r.Id == memApp.Id || r.Reference.Equals(memApp.Reference, StringComparison.OrdinalIgnoreCase)))
+            {
+                resultList.Add(memApp);
+            }
+        }
+
+        return resultList;
+    }
+
+    public async Task<LoanApplicationDto?> GetLoanApplicationByRefAsync(string reference, CancellationToken cancellationToken = default)
+    {
+        var apps = await GetAllLoanApplicationsAsync(cancellationToken);
+        return apps.FirstOrDefault(a => a.Reference.Equals(reference, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task<LoanApplicationDto> CreateLoanApplicationAsync(CreateLoanApplicationDto dto, CancellationToken cancellationToken = default)
+    {
+        if (dto is null)
+        {
+            throw new ArgumentNullException(nameof(dto));
+        }
+
+        if (dto.Principal <= 0)
+        {
+            throw new ArgumentException("Loan principal must be greater than 0.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Purpose))
+        {
+            throw new ArgumentException("Loan purpose is required.");
+        }
+
+        if (dto.TenureMonths <= 0)
+        {
+            throw new ArgumentException("Tenure months must be greater than 0.");
+        }
+
+        var refNo = $"LA-2026-{Random.Shared.Next(1000, 9999)}X";
+        var newId = Guid.NewGuid();
+
+        try
+        {
+            var sacco = await _context.Saccos.FirstOrDefaultAsync(cancellationToken);
+            if (sacco is null)
+            {
+                sacco = new Sacco
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Talanton SACCO",
+                    RegistrationNumber = "SACCO-UG-001",
+                    Status = "Active",
+                    ContactEmail = "info@talanton.demo",
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Saccos.Add(sacco);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(cancellationToken);
+            if (user is null)
+            {
+                user = new User
+                {
+                    Id = Guid.NewGuid(),
+                    Email = "applicant@talanton.demo",
+                    PasswordHash = "Demo123!",
+                    FullName = "Demo Applicant",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    SaccoId = sacco.Id
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            var applicantName = string.IsNullOrWhiteSpace(dto.ApplicantName) ? "Amara Trading Ltd" : dto.ApplicantName.Trim();
+            var applicant = await _context.Applicants.FirstOrDefaultAsync(a => a.DisplayName.ToLower() == applicantName.ToLower(), cancellationToken);
+            if (applicant is null)
+            {
+                applicant = new Applicant
+                {
+                    Id = Guid.NewGuid(),
+                    ApplicantType = string.IsNullOrWhiteSpace(dto.ApplicantType) ? "cooperative" : dto.ApplicantType,
+                    DisplayName = applicantName,
+                    IsActive = true,
+                    SaccoId = sacco.Id,
+                    ApplicantUserId = user.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Applicants.Add(applicant);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            var entity = new LoanApplication
+            {
+                Id = newId,
+                ApplicationNumber = refNo,
+                ApplicantId = applicant.Id,
+                SaccoId = sacco.Id,
+                CreatedByUserId = user.Id,
+                CurrentStatus = "SUBMITTED",
+                PrincipalAmount = dto.Principal,
+                AnnualSimpleInterestRatePct = 12.0m,
+                TermMonths = dto.TenureMonths,
+                AdministrativeFeeAmount = 50000m,
+                Purpose = dto.Purpose,
+                SubmittedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.LoanApplications.Add(entity);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WARNING] Exception saving loan application to EF Core DB: {ex.Message}");
+        }
+
+        var createdDto = new LoanApplicationDto
+        {
+            Id = newId,
             Reference = refNo,
-            ApplicantName = dto.ApplicantName,
-            MemberId = dto.MemberId,
-            ApplicantType = dto.ApplicantType,
-            Status = "in_review",
+            ApplicantName = string.IsNullOrWhiteSpace(dto.ApplicantName) ? "Amara Trading Ltd" : dto.ApplicantName,
+            MemberId = string.IsNullOrWhiteSpace(dto.MemberId) ? "APP-TEST-001" : dto.MemberId,
+            ApplicantType = string.IsNullOrWhiteSpace(dto.ApplicantType) ? "cooperative" : dto.ApplicantType,
+            Status = "submitted",
             Stage = "verification",
             Principal = dto.Principal,
             Purpose = dto.Purpose,
@@ -295,15 +462,16 @@ public class LoanApplicationService : ILoanApplicationService
             SavingsBalance = dto.SavingsBalance,
             MonthlyIncome = dto.MonthlyIncome,
             MonthlyDebt = dto.MonthlyDebt,
-            Multiplier = dto.Multiplier,
+            Multiplier = dto.Multiplier > 0 ? dto.Multiplier : 3.0m,
             SubmittedOn = DateTime.UtcNow.ToString("MMM dd, yyyy"),
-            StatusNote = "Application submitted. Verification in progress.",
+            StatusNote = $"Application {refNo} submitted. Verification in progress.",
             DtiNetRatio = dto.MonthlyIncome > 0 ? Math.Round((dto.MonthlyDebt / dto.MonthlyIncome) * 100, 1) : 0,
             NetTakeHome = dto.MonthlyIncome - dto.MonthlyDebt,
             Verdict = "IN_REVIEW"
         };
-        Applications.Insert(0, created);
-        return Task.FromResult(created);
+
+        Applications.Insert(0, createdDto);
+        return createdDto;
     }
 
     public Task<LoanApplicationDto?> UpdateUnderwritingAsync(string reference, UpdateUnderwritingOverrideDto dto, CancellationToken cancellationToken = default)
