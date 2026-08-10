@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   fetchApplications,
+  createLoanApplication,
   castCommitteeVote as apiCastVote,
 } from '@/lib/api-service'
 import {
@@ -37,7 +38,31 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
   }
 
   async function handleSubmitToUnderwriter() {
-    alert('Application submitted successfully. The file is now queued for underwriter review.')
+    setLoading(true)
+    const result = await createLoanApplication({
+      applicantName: application.fullName || 'Amara Trading Ltd',
+      memberId: application.memberId || 'APP-TEST-001',
+      applicantType: application.applicantType || 'cooperative',
+      principal: application.principal || 5000000,
+      purpose: application.purpose || 'Working Capital',
+      tenureMonths: application.tenureMonths || 12,
+      savingsBalance: application.savingsBalance || 2000000,
+      monthlyIncome: application.monthlyIncome || 1500000,
+      monthlyDebt: application.monthlyDebt || 300000,
+      multiplier: application.multiplier || 3.0,
+    })
+
+    setLoading(false)
+
+    if (result.success && result.data) {
+      alert(`Application ${result.data.reference} submitted successfully! Status: ${result.data.status.toUpperCase()}`)
+      const updatedApps = await fetchApplications()
+      if (updatedApps && updatedApps.length > 0) {
+        setApplication(updatedApps[0])
+      }
+    } else {
+      alert(`Unable to submit your application: ${result.error || 'Please try again.'}`)
+    }
   }
 
   async function handleRouteToCommittee() {

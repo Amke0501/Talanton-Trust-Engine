@@ -1,5 +1,6 @@
 import {
   type Application,
+  type ApplicantType,
   type CreditPassportMember,
   INITIAL_APPLICATION,
   type RoleType,
@@ -71,6 +72,73 @@ export async function fetchApplications(): Promise<Application[]> {
     console.warn('Backend API connection failed, using local memory state.', err)
   }
   return [INITIAL_APPLICATION]
+}
+
+export type CreateLoanApplicationPayload = {
+  applicantName: string
+  memberId: string
+  applicantType: string
+  principal: number
+  purpose: string
+  tenureMonths: number
+  savingsBalance: number
+  monthlyIncome: number
+  monthlyDebt: number
+  multiplier: number
+}
+
+export async function createLoanApplication(
+  payload: CreateLoanApplicationPayload
+): Promise<{ success: boolean; data?: Application; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/loanapplications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    const text = await res.text()
+    let body: any = null
+    try {
+      body = text ? JSON.parse(text) : null
+    } catch {
+      body = null
+    }
+
+    if (!res.ok) {
+      const errorMsg = body?.message || body?.title || `HTTP error ${res.status}: Unable to submit application.`
+      console.error('Failed to create loan application:', errorMsg)
+      return { success: false, error: errorMsg }
+    }
+
+    const createdApp: Application = {
+      ...INITIAL_APPLICATION,
+      id: body.id || INITIAL_APPLICATION.id,
+      reference: body.reference || INITIAL_APPLICATION.reference,
+      fullName: body.applicantName || payload.applicantName,
+      memberId: body.memberId || payload.memberId,
+      applicantType: (body.applicantType as ApplicantType) || (payload.applicantType as ApplicantType) || 'cooperative',
+      principal: body.principal || payload.principal,
+      purpose: body.purpose || payload.purpose,
+      tenureMonths: body.tenureMonths || payload.tenureMonths,
+      savingsBalance: body.savingsBalance || payload.savingsBalance,
+      monthlyIncome: body.monthlyIncome || payload.monthlyIncome,
+      monthlyDebt: body.monthlyDebt || payload.monthlyDebt,
+      multiplier: body.multiplier || payload.multiplier,
+      status: (body.status?.toLowerCase() as any) || 'submitted',
+      stage: (body.stage?.toLowerCase() as any) || 'verification',
+      submittedOn: body.submittedOn || 'Just now',
+      statusNote: body.statusNote || 'Application submitted. Verification in progress.',
+    }
+
+    return { success: true, data: createdApp }
+  } catch (err: any) {
+    console.error('Network or server error during createLoanApplication:', err)
+    return {
+      success: false,
+      error: 'Unable to submit your application. Please check your connection and try again.',
+    }
+  }
 }
 
 export async function fetchCreditPassportMembers(): Promise<CreditPassportMember[]> {

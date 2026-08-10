@@ -78,6 +78,42 @@ public static class DemoUsersSeeder
         }
 
         await db.SaveChangesAsync(cancellationToken);
+
+        // Ensure default SACCO
+        var sacco = await db.Saccos.FirstOrDefaultAsync(cancellationToken);
+        if (sacco is null)
+        {
+            sacco = new Sacco
+            {
+                Id = Guid.NewGuid(),
+                Name = "Talanton SACCO",
+                RegistrationNumber = "SACCO-UG-001",
+                Status = "Active",
+                ContactEmail = "info@talanton.demo",
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Saccos.Add(sacco);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        // Ensure default Demo Applicant
+        var demoUser = await db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == "applicant@talanton.demo", cancellationToken);
+        var applicant = await db.Applicants.FirstOrDefaultAsync(a => a.DisplayName == "Amara Trading Ltd" || a.DisplayName == "Demo Applicant", cancellationToken);
+        if (applicant is null)
+        {
+            applicant = new Applicant
+            {
+                Id = Guid.NewGuid(),
+                ApplicantType = "cooperative",
+                DisplayName = "Amara Trading Ltd",
+                IsActive = true,
+                SaccoId = sacco.Id,
+                ApplicantUserId = demoUser?.Id,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Applicants.Add(applicant);
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task<Dictionary<string, Guid>> EnsureRolesAsync(ApplicationDbContext db, CancellationToken cancellationToken)
