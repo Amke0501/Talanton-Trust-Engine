@@ -1,6 +1,4 @@
 {
-  "/dashboard/[role]/page": "app/dashboard/[role]/page.js",
-  "/login/[role]/page": "app/login/[role]/page.js",
-  "/logout/route": "app/logout/route.js",
-  "/page": "app/page.js"
+  "/page": "app/page.js",
+  "/login/[role]/page": "app/login/[role]/page.js"
 }
