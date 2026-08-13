@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useMemo, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { demoLogin } from '@/lib/api-service'
 import {
   AUTH_COOKIE_NAME,
@@ -57,15 +58,24 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#eaf4e5] px-4 py-10 text-[#103a27] sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-md rounded-2xl border border-[#103a27]/15 bg-white p-6 shadow-sm sm:p-7">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#6c8f79]">Talanton Trust Engine</p>
-        <h1 className="mt-2 font-serif text-3xl font-bold tracking-tight">{pageTitle}</h1>
-        <p className="mt-2 text-sm text-[#2a5040]/80">Sign in securely to access your workspace.</p>
+    <main className="min-h-screen bg-[#eaf4e5] px-4 py-10 text-[#103a27] sm:px-6 lg:px-8 flex flex-col justify-center relative">
+      {/* Top Header */}
+      <header className="absolute top-0 left-0 right-0 w-full flex items-center justify-between px-8 py-6">
+        <Link href="/" className="flex items-center justify-center rounded-full bg-[#103a27]/5 hover:bg-[#103a27]/10 p-3 transition-colors cursor-pointer" aria-label="Back to selection">
+          <ArrowLeft className="size-6" strokeWidth={2.5} />
+        </Link>
+        <div className="text-3xl font-serif font-bold text-[#103a27]">Talanton.</div>
+      </header>
 
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#2a5040]/80">Email</span>
+      <div className="mx-auto w-full max-w-xl pb-12 mt-16">
+        <div className="mb-14">
+          <h1 className="font-serif text-6xl md:text-7xl font-bold tracking-tight">{pageTitle}</h1>
+          <p className="mt-4 text-lg md:text-xl text-[#2a5040]/80">Sign in securely to access your workspace.</p>
+        </div>
+
+        <form className="space-y-8" onSubmit={handleSubmit}>
+          <label className="block space-y-3">
+            <span className="text-sm font-semibold uppercase tracking-wider text-[#2a5040]/80">Email</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -73,12 +83,15 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
               required
               autoComplete="email"
               placeholder="Enter your email"
-              className="w-full rounded-xl border border-[#103a27]/20 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#103a27]"
+              className="w-full rounded-2xl border border-[#103a27]/10 bg-white/70 px-6 py-4.5 text-lg outline-none transition focus:border-[#103a27] focus:bg-white focus:ring-1 focus:ring-[#103a27]"
             />
           </label>
 
-          <label className="block space-y-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#2a5040]/80">Password</span>
+          <label className="block space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold uppercase tracking-wider text-[#2a5040]/80">Password</span>
+              <Link href="#" className="text-sm font-semibold text-[#103a27] hover:underline opacity-80 hover:opacity-100">Forgot password?</Link>
+            </div>
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -86,12 +99,12 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
               required
               autoComplete="current-password"
               placeholder="Enter your password"
-              className="w-full rounded-xl border border-[#103a27]/20 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[#103a27]"
+              className="w-full rounded-2xl border border-[#103a27]/10 bg-white/70 px-6 py-4.5 text-lg outline-none transition focus:border-[#103a27] focus:bg-white focus:ring-1 focus:ring-[#103a27]"
             />
           </label>
 
           {error && (
-            <p className="rounded-xl border border-[#a52929]/20 bg-[#fff0f0] px-3 py-2 text-sm text-[#a52929]">
+            <p className="rounded-xl border border-[#a52929]/20 bg-[#fff0f0] px-6 py-4.5 text-base text-[#a52929]">
               {error}
             </p>
           )}
@@ -99,15 +112,11 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-[#103a27] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#124a31] disabled:opacity-60"
+            className="w-full rounded-[2.5rem] bg-[#103a27] px-8 py-5 text-xl font-semibold text-white transition hover:bg-[#124a31] disabled:opacity-60 cursor-pointer shadow-md mt-4"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <Link href="/" className="mt-5 inline-block text-sm font-semibold text-[#103a27] hover:underline">
-          Back to role selection
-        </Link>
       </div>
     </main>
   )
