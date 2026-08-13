@@ -38,23 +38,13 @@ export function RoleLoginPage({ role }: { role: RoleType }) {
     setError('')
     setLoading(true)
 
-    const result = await demoLogin({
-      email,
-      password,
-      portalRole: role,
-    })
-
-    if (!result.success || !result.data) {
-      setLoading(false)
-      setError(result.message || 'Unable to sign in.')
-      return
-    }
-
+    // Bypass login check to instantly view the dashboard
+    const resolvedEmail = email || `${role}@talanton.com`
     document.cookie = `${AUTH_COOKIE_NAME}=1; path=/; samesite=lax`
-    document.cookie = `${ROLE_COOKIE_NAME}=${result.data.role}; path=/; samesite=lax`
-    document.cookie = `${USER_EMAIL_COOKIE_NAME}=${encodeURIComponent(result.data.email)}; path=/; samesite=lax`
+    document.cookie = `${ROLE_COOKIE_NAME}=${role}; path=/; samesite=lax`
+    document.cookie = `${USER_EMAIL_COOKIE_NAME}=${encodeURIComponent(resolvedEmail)}; path=/; samesite=lax`
 
-    router.replace(`/dashboard/${result.data.role}`)
+    router.replace(`/dashboard/${role}`)
   }
 
   return (
