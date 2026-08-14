@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Talanton.Api.Data;
 using Talanton.Api.DTOs;
+using Talanton.Api.Models;
 
 namespace Talanton.Api.Controllers;
 
@@ -60,6 +61,37 @@ public class AuthController : ControllerBase
         }
 
         user.LastLoginAt = DateTime.UtcNow;
+
+        Guid? applicantId = null;
+        if (assignedRole == "applicant")
+        {
+            // Resolve the real Applicant row owned by this user. Create one on first
+            // login if it doesn't exist yet, so a brand-new applicant account can still
+            // own applications immediately (no hardcoded/shared applicant record).
+            var applicant = await _db.Applicants
+                .FirstOrDefaultAsync(a => a.ApplicantUserId == user.Id, cancellationToken);
+
+            if (applicant is null)
+            {
+                var sacco = await _db.Saccos.FirstOrDefaultAsync(cancellationToken)
+                    ?? throw new InvalidOperationException("No SACCO record exists to attach a new applicant to.");
+
+                applicant = new Applicant
+                {
+                    Id = Guid.NewGuid(),
+                    ApplicantType = "individual",
+                    DisplayName = user.FullName,
+                    IsActive = true,
+                    SaccoId = sacco.Id,
+                    ApplicantUserId = user.Id,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                _db.Applicants.Add(applicant);
+            }
+
+            applicantId = applicant.Id;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return Ok(new LoginResponseDto
@@ -67,6 +99,8 @@ public class AuthController : ControllerBase
             Email = user.Email,
             FullName = user.FullName,
             Role = assignedRole,
+            UserId = user.Id,
+            ApplicantId = applicantId,
         });
     }
 

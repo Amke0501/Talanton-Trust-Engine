@@ -39,4 +39,33 @@ public class LoanApplication
     public DateTime? DecisionAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // --- Scorecard / underwriting inputs & outputs -----------------------------------
+    // Added Wednesday sprint: previously these lived only in an in-memory DTO and were
+    // never persisted, so the scorecard could not survive a refresh or be recalculated
+    // from real submitted data. See ScoringService for the calculation.
+
+    public decimal SavingsBalance { get; set; }
+
+    public decimal MonthlyIncome { get; set; }
+
+    public decimal MonthlyDebt { get; set; }
+
+    public decimal Multiplier { get; set; } = 3.0m;
+
+    /// <summary>Debt-to-income ratio including the estimated new loan installment, as a percentage.</summary>
+    public decimal? DtiNetRatio { get; set; }
+
+    /// <summary>Monthly income minus existing debt minus the estimated new loan installment.</summary>
+    public decimal? NetTakeHome { get; set; }
+
+    public bool? GuardrailDepositMultiplierPassed { get; set; }
+
+    public bool? GuardrailOneThirdPayPassed { get; set; }
+
+    /// <summary>Deterministic 0-100 trust score computed by ScoringService from the fields above.</summary>
+    public int? TrustScore { get; set; }
+
+    /// <summary>APPROVED or DECLINED, derived from the guardrail checks.</summary>
+    public string? Verdict { get; set; }
 }

@@ -570,6 +570,36 @@ namespace Talanton.Api.Migrations
                     b.Property<int>("TermMonths")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("SavingsBalance")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("MonthlyIncome")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("MonthlyDebt")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("Multiplier")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("DtiNetRatio")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("NetTakeHome")
+                        .HasColumnType("numeric");
+
+                    b.Property<bool?>("GuardrailDepositMultiplierPassed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("GuardrailOneThirdPayPassed")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("TrustScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Verdict")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicantId");
