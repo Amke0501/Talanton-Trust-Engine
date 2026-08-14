@@ -121,3 +121,71 @@
     background-attachment: fixed;
   }
 }
+
+/* Landing page background images — override body gradient */
+.landing-bg {
+  background-image: url('/Talenton bg-desktop.png') !important;
+  background-size: cover;
+  background-position: bottom;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+}
+
+@media (max-width: 767px) {
+  .landing-bg {
+    background-image: url('/Talenton bg-mobile.png') !important;
+    background-position: bottom;
+  }
+}
+
+/* ─── Landing page entrance animations ──────────────────────────── */
+
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes heroBgZoom {
+  from { transform: scale(1.06); }
+  to   { transform: scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Navbar slides down */
+.anim-nav {
+  opacity: 0;
+  animation: fadeSlideDown 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
+}
+
+/* Hero background fades + subtle zoom */
+.anim-hero-bg {
+  animation: heroBgZoom 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+             fadeIn 0.8s ease forwards;
+}
+
+/* Hero heading */
+.anim-heading {
+  opacity: 0;
+  animation: fadeSlideUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.25s forwards;
+}
+
+/* Hero subtext */
+.anim-sub {
+  opacity: 0;
+  animation: fadeSlideUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.45s forwards;
+}
+
+/* Hero buttons */
+.anim-buttons {
+  opacity: 0;
+  animation: fadeSlideUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.65s forwards;
+}
