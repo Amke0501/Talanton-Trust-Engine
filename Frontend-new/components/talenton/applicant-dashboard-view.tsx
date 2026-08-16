@@ -1,7 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, FileText, Send, Sparkles, X, ChevronRight, ChevronLeft, Upload } from 'lucide-react'
+import { 
+  CheckCircle2, 
+  FileText, 
+  Send, 
+  Sparkles, 
+  X, 
+  ChevronRight, 
+  ChevronLeft, 
+  Upload, 
+  Save, 
+  ShieldCheck, 
+  User, 
+  Wallet, 
+  Clock, 
+  Edit3 
+} from 'lucide-react'
 import {
   formatUGX,
   makeDocumentSlots,
@@ -15,38 +30,48 @@ export function ApplicantDashboardView({
   application,
   onUpdateApplication,
   onSubmitToUnderwriter,
+  onSaveDraft,
   onClose,
 }: {
   application: Application
   onUpdateApplication: (updated: Partial<Application>) => void
-  onSubmitToUnderwriter: () => void
+  onSubmitToUnderwriter: (appData: Partial<Application>) => Promise<void>
+  onSaveDraft?: (appData: Partial<Application>) => Promise<void>
   onClose?: () => void
 }) {
-  // Step indicator state
+  // Step indicator state: 1: Basics, 2: Financials, 3: Documents, 4: Preview
   const [step, setStep] = useState(1)
 
-  // Empty fields by default for fresh applications (no default values)
-  const [classification, setClassification] = useState<ApplicantType>('individual')
-  const [multiplier, setMultiplier] = useState<number>(3)
-  const [purpose, setPurpose] = useState<string>('')
+  const [classification, setClassification] = useState<ApplicantType>(application.applicantType || 'individual')
+  const [multiplier, setMultiplier] = useState<number>(application.multiplier || 3)
+  const [purpose, setPurpose] = useState<string>(application.purpose || '')
   
-  // Numerical fields initialized to empty string '' for empty placeholders
-  const [principal, setPrincipal] = useState<number | ''>('')
-  const [savings, setSavings] = useState<number | ''>('')
-  const [monthlyPay, setMonthlyPay] = useState<number | ''>('')
-  const [monthlyDebt, setMonthlyDebt] = useState<number | ''>('')
-  const [tenure, setTenure] = useState<number | ''>('')
+  const [principal, setPrincipal] = useState<number | ''>(application.principal || '')
+  const [savings, setSavings] = useState<number | ''>(application.savingsBalance || '')
+  const [monthlyPay, setMonthlyPay] = useState<number | ''>(application.monthlyIncome || '')
+  const [monthlyDebt, setMonthlyDebt] = useState<number | ''>(application.monthlyDebt || '')
+  const [tenure, setTenure] = useState<number | ''>(application.tenureMonths || '')
   
-  const [documents, setDocuments] = useState<DocumentSlot[]>(makeDocumentSlots('individual'))
+  const [documents, setDocuments] = useState<DocumentSlot[]>(
+    application.documents && application.documents.length > 0
+      ? application.documents
+      : makeDocumentSlots(classification)
+  )
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
 
   const calculatedCap = savingsCap(Number(savings) || 0, multiplier)
-  const clearedCount = documents.filter((d) => d.status === 'VERIFIED').length
+  const estDTI = (Number(monthlyPay) > 0 && Number(monthlyDebt) >= 0)
+    ? Math.round((Number(monthlyDebt) / Number(monthlyPay)) * 100)
+    : 0
 
   function handleFieldChange(field: string, val: any) {
     if (field === 'classification') {
       setClassification(val)
-      setDocuments(makeDocumentSlots(val))
-      onUpdateApplication({ applicantType: val, documents: makeDocumentSlots(val) })
+      const newSlots = makeDocumentSlots(val)
+      setDocuments(newSlots)
+      onUpdateApplication({ applicantType: val, documents: newSlots })
     } else if (field === 'multiplier') {
       setMultiplier(val)
       onUpdateApplication({ multiplier: val })
@@ -76,34 +101,15 @@ export function ApplicantDashboardView({
     }
   }
 
-  function handleOCRSimulate(preset: 'salary' | 'sme' | 'high_risk') {
-    if (preset === 'salary') {
-      setMonthlyPay(4_000_000)
-      setMonthlyDebt(500_000)
-      setSavings(4_000_000)
-      setPrincipal(12_000_000)
-      onUpdateApplication({ monthlyIncome: 4_000_000, monthlyDebt: 500_000, savingsBalance: 4_000_000, principal: 12_000_000 })
-    } else if (preset === 'sme') {
-      setClassification('cooperative')
-      setMonthlyPay(8_500_000)
-      setMonthlyDebt(1_200_000)
-      setSavings(15_000_000)
-      setPrincipal(42_000_000)
-      setDocuments(makeDocumentSlots('cooperative'))
-      onUpdateApplication({ applicantType: 'cooperative', monthlyIncome: 8_500_000, monthlyDebt: 1_200_000, savingsBalance: 15_000_000, principal: 42_000_000, documents: makeDocumentSlots('cooperative') })
-    } else if (preset === 'high_risk') {
-      setMonthlyPay(2_500_000)
-      setMonthlyDebt(1_800_000)
-      setPrincipal(18_000_000)
-      onUpdateApplication({ monthlyIncome: 2_500_000, monthlyDebt: 1_800_000, principal: 18_000_000 })
-    }
-  }
-
-  function toggleDocumentStatus(docId: string) {
+  function toggleDocumentStatus(slotId: string) {
     const updated = documents.map((d) => {
-      if (d.id === docId) {
+      if (d.id === slotId) {
         const nextStatus = d.status === 'VERIFIED' ? 'PENDING' : 'VERIFIED'
-        return { ...d, status: nextStatus as any }
+        return {
+          ...d,
+          status: nextStatus as any,
+          fileName: nextStatus === 'VERIFIED' ? (d.fileName || `${d.id}_upload.pdf`) : undefined,
+        }
       }
       return d
     })
@@ -111,302 +117,480 @@ export function ApplicantDashboardView({
     onUpdateApplication({ documents: updated })
   }
 
-  function handleSubmit() {
-    const issues: string[] = []
-    if (!savings || Number(savings) <= 0) issues.push('Savings balance must be greater than 0')
-    if (!principal || Number(principal) <= 0) issues.push('Loan principal must be greater than 0')
-    if (!monthlyPay || Number(monthlyPay) <= 0) issues.push('Monthly income / net pay must be greater than 0')
-    const mandatoryUncleared = documents.filter((d) => d.required && d.status !== 'VERIFIED')
-    if (mandatoryUncleared.length > 0) {
-      issues.push(`${mandatoryUncleared.length} mandatory document(s) not yet verified: ${mandatoryUncleared.map(d => d.label).join(', ')}`)
+  function handleOCRSimulate(type: 'salary' | 'sme') {
+    if (type === 'salary') {
+      setMonthlyPay(2500000)
+      setSavings(4000000)
+      setMonthlyDebt(500000)
+      onUpdateApplication({
+        monthlyIncome: 2500000,
+        savingsBalance: 4000000,
+        monthlyDebt: 500000,
+      })
+    } else {
+      setMonthlyPay(7500000)
+      setSavings(12000000)
+      setMonthlyDebt(1800000)
+      onUpdateApplication({
+        monthlyIncome: 7500000,
+        savingsBalance: 12000000,
+        monthlyDebt: 1800000,
+      })
     }
-    if (issues.length > 0) {
-      alert('Cannot submit — please fix the following:\n\n• ' + issues.join('\n• '))
-      return
-    }
-    onSubmitToUnderwriter()
+    // Mark docs as uploaded
+    const updated = documents.map((d) => ({
+      ...d,
+      status: 'VERIFIED' as const,
+      fileName: d.fileName || `${d.id}_ocr_scanned.pdf`,
+    }))
+    setDocuments(updated)
+    onUpdateApplication({ documents: updated })
   }
 
-  // Determine card background based on step
-  const cardBgClass = step === 3 ? 'bg-[#0d2a1c]' : 'bg-white'
-  const cardBorderClass = step === 3 ? 'border-white/10' : 'border-gray-200'
+  async function handleSaveDraftClick() {
+    setIsSavingDraft(true)
+    const appData = {
+      reference: application.reference,
+      applicantType: classification,
+      multiplier,
+      purpose,
+      principal: Number(principal) || 0,
+      savingsBalance: Number(savings) || 0,
+      monthlyIncome: Number(monthlyPay) || 0,
+      monthlyDebt: Number(monthlyDebt) || 0,
+      tenureMonths: Number(tenure) || 12,
+      documents,
+      status: 'draft' as const,
+      stage: 'draft' as const,
+    }
+    if (onSaveDraft) {
+      await onSaveDraft(appData)
+    }
+    setIsSavingDraft(false)
+    if (onClose) onClose()
+  }
+
+  async function handleFinalSubmit() {
+    setIsSubmitting(true)
+    const appData = {
+      reference: application.reference,
+      applicantType: classification,
+      multiplier,
+      purpose,
+      principal: Number(principal) || 0,
+      savingsBalance: Number(savings) || 0,
+      monthlyIncome: Number(monthlyPay) || 0,
+      monthlyDebt: Number(monthlyDebt) || 0,
+      tenureMonths: Number(tenure) || 12,
+      documents,
+      status: 'submitted' as const,
+      stage: 'verification' as const,
+    }
+    await onSubmitToUnderwriter(appData)
+    setIsSubmitting(false)
+  }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#eaf4e5] flex flex-col font-sans relative">
-      
-      {/* Background Faint City Skyline Drawing */}
-      <div className="absolute bottom-0 left-0 right-0 h-48 opacity-[0.06] pointer-events-none z-0">
-        <svg viewBox="0 0 1200 200" fill="none" stroke="#103a27" strokeWidth="2.5" className="w-full h-full object-cover">
-          <path d="M0,180 L80,180 L80,110 L120,110 L120,150 L160,150 L160,80 L200,80 L200,180 L250,180 L250,130 L290,130 L290,180 L350,180 L350,90 L400,90 L400,140 L430,140 L430,180 L500,180 L500,60 L540,60 L540,110 L580,110 L580,180 L620,180 L620,120 L660,120 L660,180 L720,180 L720,70 L770,70 L770,180 L830,180 L830,100 L880,100 L880,150 L910,150 L910,180 L980,180 L980,50 L1020,50 L1020,130 L1060,130 L1060,180 L1120,180 L1120,110 L1160,110 L1160,180 L1200,180" />
-          <line x1="0" y1="180" x2="1200" y2="180" />
-          <path d="M100,50 Q250,20 400,60 T700,30 T1000,70" strokeDasharray="5,5" />
-          <path d="M150,100 Q300,70 450,110 T750,80 T1050,120" strokeDasharray="5,5" />
-        </svg>
-      </div>
-
-      {/* Sticky Dark Green Header Row */}
-      <div className="bg-[#0d2a1c] border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-md text-white">
-        <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-white/10 text-white font-bold shadow-sm">
-            T.
-          </span>
-          <div>
-            <h2 className="font-serif text-xl font-extrabold text-white">New Credit Application</h2>
-            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44]">SACCO Appraisals</p>
-          </div>
-        </div>
-
-        {/* Step progress indicators in header */}
-        <div className="flex items-center gap-4 text-xs font-semibold text-gray-300">
-          <div className={`flex items-center gap-2 ${step >= 1 ? 'text-white font-bold' : 'text-gray-400'}`}>
-            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 1 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>1</span>
-            Profile
-          </div>
-          <div className="h-px w-8 bg-white/10" />
-          <div className={`flex items-center gap-2 ${step >= 2 ? 'text-white font-bold' : 'text-gray-400'}`}>
-            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 2 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>2</span>
-            Finances
-          </div>
-          <div className="h-px w-8 bg-white/10" />
-          <div className={`flex items-center gap-2 ${step >= 3 ? 'text-white font-bold' : 'text-gray-400'}`}>
-            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 3 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>3</span>
-            Documents
-          </div>
-        </div>
-
-        {/* Close Button X */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-2 rounded-full hover:bg-white/10 text-gray-300 hover:text-white transition-colors cursor-pointer"
-          aria-label="Close form"
-        >
-          <X className="size-6" />
-        </button>
-      </div>
-
-      {/* Main Centered Box Container */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-12 z-10">
-        <div className={`max-w-2xl w-full rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all ${cardBgClass} ${cardBorderClass}`}>
-          
-          {/* Card Body - Edit blocks directly (no title headers here) */}
-          <div className={`p-6 md:p-8 space-y-6 flex-1 ${cardBgClass}`}>
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-8 animate-scaleUp">
+        
+        {/* Top Header */}
+        <div className="bg-[#0d2a1c] p-6 text-white relative">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[0.65rem] font-bold uppercase tracking-widest text-[#a4cc44]">SACCO CREDIT PIPELINE</span>
+              <h2 className="text-xl font-serif font-bold mt-0.5">Loan Request Wizard</h2>
+            </div>
             
-            {/* STEP 1: Profile (Edit blocks only) */}
-            {step === 1 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Applicant Classification</label>
-                    <select
-                      value={classification}
-                      onChange={(e) => handleFieldChange('classification', e.target.value)}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all"
-                    >
-                      <option value="individual">BOSA Member (Savings Anchor)</option>
-                      <option value="cooperative">Cooperative / SME</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Desired Capital Multiplier</label>
-                    <select
-                      value={multiplier}
-                      onChange={(e) => handleFieldChange('multiplier', Number(e.target.value))}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all"
-                    >
-                      <option value={2}>2x Savings Balance</option>
-                      <option value={3}>3x Savings Balance</option>
-                      <option value={4}>4x Savings Balance</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Purpose of Financing</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Working capital, Expand business operations"
-                    value={purpose}
-                    onChange={(e) => handleFieldChange('purpose', e.target.value)}
-                    className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#103a27] transition-all"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: Finances (Edit blocks only) */}
-            {step === 2 && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="space-y-2">
-                  <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Requested Loan Principal (UGX)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 15,000,000"
-                    value={principal}
-                    onChange={(e) => handleFieldChange('principal', e.target.value)}
-                    className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-lg font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
-                  />
-                </div>
-
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Current Savings Balance (UGX)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 4,000,000"
-                      value={savings}
-                      onChange={(e) => handleFieldChange('savings', e.target.value)}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Certified Monthly Revenue (UGX)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 2,500,000"
-                      value={monthlyPay}
-                      onChange={(e) => handleFieldChange('monthlyPay', e.target.value)}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Monthly Debt Deductions (UGX)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 500,000"
-                      value={monthlyDebt}
-                      onChange={(e) => handleFieldChange('monthlyDebt', e.target.value)}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Amortization Tenure (Months)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 12"
-                      value={tenure}
-                      onChange={(e) => handleFieldChange('tenure', e.target.value)}
-                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Compliance & Submission (Dark Green Layout) */}
-            {step === 3 && (
-              <div className="space-y-6 animate-fadeIn text-white">
-                
-                {/* Document Slots checklist */}
-                <div className="space-y-3">
-                  <label className="text-[0.7rem] font-bold uppercase tracking-wider text-[#a4cc44] block mb-2">Verify Required Slots</label>
-                  <div className="space-y-3">
-                    {documents.map((doc) => {
-                      const isVerified = doc.status === 'VERIFIED'
-                      return (
-                        <div key={doc.id} className="flex items-center justify-between p-3.5 rounded-xl border border-white/10 bg-white/5">
-                          <div className="flex items-start gap-3">
-                            <FileText className="size-5 text-[#a4cc44] mt-0.5" />
-                            <div>
-                              <p className="text-sm font-bold text-white">{doc.label}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">{doc.hint}</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleDocumentStatus(doc.id)}
-                            className="shrink-0 cursor-pointer text-sm"
-                          >
-                            {isVerified ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-300 border border-emerald-500/30">
-                                <CheckCircle2 className="size-4" />
-                                Verified
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#a4cc44] px-3 py-1.5 text-xs font-bold text-[#0d2a1c] hover:bg-[#b5dc55] transition-colors shadow-sm">
-                                <Upload className="size-3.5" />
-                                Upload
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* OCR & BOSA Estimate Combined */}
-                <div className="grid gap-5 sm:grid-cols-2 pt-2">
-                  {/* OCR Simulator */}
-                  <div className="rounded-xl border border-white/10 p-4 space-y-3 bg-white/5">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="size-4 text-[#a4cc44]" />
-                      <h4 className="text-xs font-bold text-gray-200">OCR Statements</h4>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOCRSimulate('salary')}
-                        className="text-left w-full rounded-lg border border-white/10 bg-transparent p-2.5 hover:border-[#a4cc44] hover:bg-white/10 text-xs font-semibold text-gray-300 cursor-pointer transition-all"
-                      >
-                        Salary Slip
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOCRSimulate('sme')}
-                        className="text-left w-full rounded-lg border border-white/10 bg-transparent p-2.5 hover:border-[#a4cc44] hover:bg-white/10 text-xs font-semibold text-gray-300 cursor-pointer transition-all"
-                      >
-                        SME Statement
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* BOSA Estimate */}
-                  <div className="rounded-xl border border-[#a4cc44]/30 bg-[#a4cc44]/10 p-5 flex flex-col justify-between">
-                    <div>
-                      <span className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44] block">BOSA Cap Estimate</span>
-                      <p className="text-2xl font-extrabold text-white mt-1.5 font-mono">{formatUGX(calculatedCap)}</p>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-4 leading-snug">
-                      Multiplier value selected in Step 1.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* Centered Modal Footer Navigation Bar */}
-          <div className={`border-t px-6 py-4 flex items-center justify-between ${step === 3 ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-50/50'}`}>
-            {step > 1 ? (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setStep(prev => prev - 1)}
-                className={`flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors cursor-pointer ${
-                  step === 3 
-                    ? 'border-white/20 text-white hover:bg-white/10' 
-                    : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-100'
-                }`}
+                onClick={handleSaveDraftClick}
+                disabled={isSavingDraft}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition-all cursor-pointer"
+                title="Save progress as draft"
               >
-                <ChevronLeft className="size-4" />
-                Back
+                <Save className="size-3.5 text-[#a4cc44]" />
+                {isSavingDraft ? 'Saving...' : 'Save Draft'}
               </button>
-            ) : (
-              <div />
-            )}
 
-            {step < 3 ? (
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-1.5 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                >
+                  <X className="size-5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Stepper Bar (4 Steps) */}
+          <div className="grid grid-cols-4 gap-2 mt-6">
+            {[
+              { num: 1, label: 'Classification' },
+              { num: 2, label: 'Financials' },
+              { num: 3, label: 'Documents' },
+              { num: 4, label: 'Preview & Submit' },
+            ].map((s) => (
+              <div 
+                key={s.num} 
+                className="cursor-pointer"
+                onClick={() => setStep(s.num)}
+              >
+                <div className={`h-1.5 rounded-full transition-all ${
+                  step >= s.num ? 'bg-[#a4cc44]' : 'bg-white/20'
+                }`} />
+                <p className={`text-[0.65rem] font-bold mt-1.5 truncate ${
+                  step === s.num ? 'text-[#a4cc44]' : 'text-white/50'
+                }`}>
+                  {s.num}. {s.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Step Content */}
+        <div className="p-6 md:p-8 space-y-6">
+          
+          {/* STEP 1: Classification & Multiplier */}
+          {step === 1 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Applicant Classification</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => handleFieldChange('classification', 'individual')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      classification === 'individual'
+                        ? 'border-[#103a27] bg-[#103a27]/5'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-bold text-sm text-[#103a27]">BOSA Member</p>
+                    <p className="text-xs text-gray-500 mt-1">Individual salary or savings anchored borrower.</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleFieldChange('classification', 'cooperative')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      classification === 'cooperative'
+                        ? 'border-[#103a27] bg-[#103a27]/5'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <p className="font-bold text-sm text-[#103a27]">SME Growth Business</p>
+                    <p className="text-xs text-gray-500 mt-1">Enterprise or Cooperative trading pipeline.</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Capital Multiplier */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Capital Savings Multiplier</label>
+                  <span className="font-mono text-sm font-bold text-[#103a27] bg-gray-100 px-2.5 py-0.5 rounded-full">{multiplier.toFixed(1)}x Multiplier</span>
+                </div>
+                <input
+                  type="range"
+                  min="2"
+                  max="5"
+                  step="0.25"
+                  value={multiplier}
+                  onChange={(e) => handleFieldChange('multiplier', parseFloat(e.target.value))}
+                  className="w-full accent-[#103a27]"
+                />
+              </div>
+
+              {/* Loan Purpose */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Loan Purpose</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Working capital inventory purchase"
+                  value={purpose}
+                  onChange={(e) => handleFieldChange('purpose', e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#103a27]"
+                />
+              </div>
+
+              {/* Principal */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Requested Principal (UGX)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 15,000,000"
+                  value={principal}
+                  onChange={(e) => handleFieldChange('principal', e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Financial Details */}
+          {step === 2 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Current Savings Balance (UGX)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 4,000,000"
+                    value={savings}
+                    onChange={(e) => handleFieldChange('savings', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Monthly Revenue / Income (UGX)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 2,500,000"
+                    value={monthlyPay}
+                    onChange={(e) => handleFieldChange('monthlyPay', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Monthly Debt Deductions (UGX)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 500,000"
+                    value={monthlyDebt}
+                    onChange={(e) => handleFieldChange('monthlyDebt', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm font-bold text-gray-800 font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Amortization Tenure (Months)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 12"
+                    value={tenure}
+                    onChange={(e) => handleFieldChange('tenure', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm font-bold text-gray-800 font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+              </div>
+
+              {/* Live Guardrails Preview */}
+              <div className="rounded-2xl bg-[#0d2a1c] p-4 text-white flex items-center justify-between">
+                <div>
+                  <p className="text-[0.65rem] font-bold uppercase text-[#a4cc44]">Savings Cap Bound</p>
+                  <p className="text-xl font-bold font-mono">{formatUGX(calculatedCap)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[0.65rem] font-bold uppercase text-[#a4cc44]">Estimated DTI Ratio</p>
+                  <p className="text-xl font-bold font-mono">{estDTI}%</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Compliance & Document Uploads */}
+          {step === 3 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Required KYC & Compliance Documents</label>
+                  <button
+                    type="button"
+                    onClick={() => handleOCRSimulate('salary')}
+                    className="text-xs font-bold text-[#103a27] hover:underline flex items-center gap-1"
+                  >
+                    <Sparkles className="size-3 text-[#a4cc44]" />
+                    Simulate OCR Auto-Upload
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {documents.map((doc) => {
+                    const isVerified = doc.status === 'VERIFIED'
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-200 bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start gap-3">
+                          <FileText className="size-5 text-[#103a27] mt-0.5" />
+                          <div>
+                            <p className="text-sm font-bold text-[#103a27]">{doc.label}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{doc.hint}</p>
+                            {doc.fileName && (
+                              <p className="text-[0.65rem] font-mono text-emerald-700 mt-1 font-semibold">&bull; {doc.fileName}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleDocumentStatus(doc.id)}
+                          className="shrink-0 text-xs font-bold"
+                        >
+                          {isVerified ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-emerald-800">
+                              <CheckCircle2 className="size-3.5" />
+                              Attached
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#103a27] text-white px-3 py-1 hover:bg-[#1a5235]">
+                              <Upload className="size-3" />
+                              Upload
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Application Preview Page */}
+          {step === 4 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="rounded-2xl border border-[#103a27]/20 bg-[#f4f5f4] p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <User className="size-4 text-[#103a27]" />
+                    <h3 className="font-serif text-sm font-bold text-[#103a27]">Applicant Identity & Classification</h3>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setStep(1)}
+                    className="text-xs font-bold text-[#103a27] flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="size-3" /> Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Borrower Name</span>
+                    <span className="font-bold text-[#103a27]">{application.fullName || 'Amina K. Nakamya'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">SACCO ID</span>
+                    <span className="font-mono font-bold text-gray-700">{application.memberId || 'M-8842'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Borrower Type</span>
+                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                      {classification === 'individual' ? 'BOSA Member' : 'SME Growth'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loan Details Card */}
+              <div className="rounded-2xl border border-[#103a27]/20 bg-white p-5 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="size-4 text-[#103a27]" />
+                    <h3 className="font-serif text-sm font-bold text-[#103a27]">Requested Facility & Terms</h3>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-[#103a27] flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="size-3" /> Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Principal</span>
+                    <span className="font-mono font-bold text-base text-[#103a27]">{formatUGX(Number(principal) || 0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Multiplier</span>
+                    <span className="font-bold text-gray-800">{multiplier.toFixed(1)}x</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Tenure</span>
+                    <span className="font-bold text-gray-800">{tenure || 12} Months</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[0.65rem] uppercase font-bold">Savings Base</span>
+                    <span className="font-mono font-bold text-gray-800">{formatUGX(Number(savings) || 0)}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-xs text-gray-600">
+                  <strong>Purpose:</strong> {purpose || 'Working capital and retail inventory'}
+                </div>
+              </div>
+
+              {/* Attached Documents Checklist */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Compliance Files ({documents.filter(d => d.status === 'VERIFIED').length}/{documents.length} Attached)</h4>
+                  <button 
+                    type="button" 
+                    onClick={() => setStep(3)}
+                    className="text-xs font-bold text-[#103a27] flex items-center gap-1 hover:underline"
+                  >
+                    <Edit3 className="size-3" /> Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {documents.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 border border-gray-100">
+                      {d.status === 'VERIFIED' ? (
+                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Clock className="size-4 text-amber-500 shrink-0" />
+                      )}
+                      <span className="truncate font-medium text-gray-700">{d.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer Navigation */}
+        <div className="border-t border-gray-200 px-6 py-4 bg-gray-50 flex items-center justify-between">
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep(prev => prev - 1)}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="size-4" />
+              Back
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSaveDraftClick}
+              disabled={isSavingDraft}
+              className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-100 transition-all"
+            >
+              {isSavingDraft ? 'Saving Draft...' : 'Save Draft'}
+            </button>
+
+            {step < 4 ? (
               <button
                 type="button"
                 onClick={() => setStep(prev => prev + 1)}
-                className="flex items-center gap-1.5 rounded-xl bg-[#0d2a1c] hover:bg-[#153e2a] text-white px-5 py-2.5 text-xs font-bold shadow-md transition-all cursor-pointer ml-auto"
+                className="flex items-center gap-1.5 rounded-xl bg-[#0d2a1c] hover:bg-[#153e2a] text-white px-5 py-2.5 text-xs font-bold shadow-md transition-all cursor-pointer"
               >
                 Next
                 <ChevronRight className="size-4" />
@@ -414,16 +598,17 @@ export function ApplicantDashboardView({
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit}
-                className="flex items-center gap-2 rounded-xl bg-[#a4cc44] hover:bg-[#b5dc55] text-[#0d2a1c] px-6 py-2.5 text-sm font-bold shadow-md transition-all cursor-pointer ml-auto"
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 rounded-xl bg-[#a4cc44] hover:bg-[#b5dc55] text-[#0d2a1c] px-6 py-2.5 text-sm font-bold shadow-md transition-all cursor-pointer"
               >
                 <Send className="size-4" />
-                Submit Application
+                {isSubmitting ? 'Submitting to Underwriter...' : 'Submit to Underwriting Desk'}
               </button>
             )}
           </div>
-
         </div>
+
       </div>
     </div>
   )

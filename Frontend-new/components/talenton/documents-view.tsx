@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { FileText, Upload, CheckCircle2, Clock, Trash2, ShieldCheck, Download, AlertCircle } from 'lucide-react'
+import { FileText, Upload, CheckCircle2, Clock, Trash2, ShieldCheck, Download, AlertCircle, Sparkles } from 'lucide-react'
 import { type Application, type DocumentSlot } from '@/lib/talenton-data'
+import { uploadDocumentToStorage } from '@/lib/api-service'
 
 export function DocumentsView({
   application,
@@ -13,42 +14,14 @@ export function DocumentsView({
 }) {
   const [selectedSlot, setSelectedSlot] = useState<string>('id')
   const [dragActive, setDragActive] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState([
-    {
-      id: 'f-1',
-      slotId: 'id',
-      label: 'National ID / NIN',
-      fileName: 'national_id_front_back.pdf',
-      size: '1.2 MB',
-      uploadedAt: 'Aug 04, 2026 10:15 AM',
-      status: 'VERIFIED',
-    },
-    {
-      id: 'f-2',
-      slotId: 'payslip',
-      label: 'Certified Payslip / Business Ledger',
-      fileName: 'payslip_july_2026.pdf',
-      size: '2.4 MB',
-      uploadedAt: 'Aug 04, 2026 10:20 AM',
-      status: 'VERIFIED',
-    },
-    {
-      id: 'f-3',
-      slotId: 'guarantor',
-      label: 'Signed Guarantor Consent Letter',
-      fileName: 'guarantor_consent_signed.pdf',
-      size: '850 KB',
-      uploadedAt: 'Aug 04, 2026 10:22 AM',
-      status: 'VERIFIED',
-    },
-  ])
+  const [isUploading, setIsUploading] = useState(false)
 
   const documentSlots = useMemo(() => {
     return application.documents || []
   }, [application])
 
   const pendingSlots = useMemo(() => {
-    return documentSlots.filter(s => s.status !== 'VERIFIED')
+    return documentSlots.filter(s => s.status !== 'VERIFIED' && !s.fileName)
   }, [documentSlots])
 
   // Handle drag events
@@ -79,25 +52,22 @@ export function DocumentsView({
     }
   }
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     const slot = documentSlots.find(s => s.id === selectedSlot)
     if (!slot) return
 
-    const newFile = {
-      id: `f-${Date.now()}`,
-      slotId: selectedSlot,
-      label: slot.label,
-      fileName: file.name,
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      uploadedAt: new Date().toLocaleString(),
-      status: 'VERIFIED',
-    }
-
-    setUploadedFiles(prev => [newFile, ...prev])
+    setIsUploading(true)
+    const fileUrl = await uploadDocumentToStorage(file, application.reference, selectedSlot)
+    setIsUploading(false)
 
     const updatedSlots = documentSlots.map(s => {
       if (s.id === selectedSlot) {
-        return { ...s, status: 'VERIFIED' as const, fileName: file.name }
+        return { 
+          ...s, 
+          status: 'VERIFIED' as const, 
+          fileName: file.name,
+          fileUrl,
+        }
       }
       return s
     })
@@ -107,12 +77,10 @@ export function DocumentsView({
     }
   }
 
-  const handleDelete = (id: string, slotId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== id))
-
+  const handleDelete = (slotId: string) => {
     const updatedSlots = documentSlots.map(s => {
       if (s.id === slotId) {
-        return { ...s, status: 'PENDING' as const, fileName: undefined }
+        return { ...s, status: 'PENDING' as const, fileName: undefined, fileUrl: undefined }
       }
       return s
     })
@@ -122,106 +90,86 @@ export function DocumentsView({
     }
   }
 
+  const attachedDocs = documentSlots.filter(d => d.fileName || d.status === 'VERIFIED')
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="font-serif text-3xl font-bold text-[#103a27]">Documents Hub</h1>
-        <p className="mt-1 text-sm text-[#2a5040]/70">
-          Manage compliance uploads, verify legal slots, and upload required documents.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-200">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-[#103a27]">Compliance & KYC Documents</h1>
+          <p className="mt-1 text-sm text-[#2a5040]/70">
+            Securely upload and manage compliance documents stored in encrypted SACCO storage.
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-12">
-        {/* Left Column: Upload Box & Legal Requirements */}
-        <div className="space-y-6 md:col-span-7">
-          {/* Upload Area Box (Dark Green) */}
-          <div className="bg-[#0d2a1c] rounded-2xl border border-white/10 p-6 shadow-xl space-y-4 text-white">
-            <h3 className="font-serif text-lg font-bold text-[#a4cc44]">Upload Compliance Document</h3>
-            
-            {/* Slot selector */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Upload Panel */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-white rounded-2xl p-6 border border-gray-150 shadow-sm space-y-4">
+            <h3 className="font-serif text-base font-bold text-[#103a27]">Upload New Document</h3>
+
+            {/* Select Slot */}
             <div className="space-y-1.5">
-              <label className="text-[0.65rem] font-bold text-gray-300 uppercase tracking-wider">Select Document Slot</label>
+              <label className="text-xs font-bold uppercase text-gray-500">Document Type</label>
               <select
                 value={selectedSlot}
                 onChange={(e) => setSelectedSlot(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-[#103a27] p-3 text-xs font-semibold text-white focus:outline-none focus:border-[#a4cc44] transition-all"
+                className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-semibold text-[#103a27] bg-white focus:outline-none focus:border-[#103a27]"
               >
                 {documentSlots.map((slot) => (
-                  <option key={slot.id} value={slot.id} className="bg-[#0d2a1c]">
-                    {slot.label} {slot.required ? '(Required)' : '(Optional)'}
+                  <option key={slot.id} value={slot.id}>
+                    {slot.label} {slot.fileName ? '(Attached ✓)' : '(Required)'}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Drag & Drop Zone */}
+            {/* Drag and Drop Box */}
             <div
               onDragEnter={handleDrag}
-              onDragOver={handleDrag}
               onDragLeave={handleDrag}
+              onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center transition-all ${
-                dragActive 
-                  ? 'border-[#a4cc44] bg-[#103a27]/50' 
-                  : 'border-white/15 bg-[#103a27]/20 hover:border-white/25'
+              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                dragActive ? 'border-[#103a27] bg-[#103a27]/5' : 'border-gray-200 bg-gray-50/50 hover:bg-gray-50'
               }`}
             >
-              <div className="size-12 rounded-full bg-white/10 text-[#a4cc44] flex items-center justify-center mb-3">
-                <Upload className="size-6" />
-              </div>
-              <p className="text-xs font-bold text-white">Drag & drop files here or click to browse</p>
-              <p className="text-[0.65rem] text-gray-300 mt-1">Supports PDF, PNG, JPG up to 8MB</p>
-              <input
-                type="file"
-                id="file-upload"
-                onChange={handleFileChange}
-                className="hidden"
-                accept=".pdf,.png,.jpg,.jpeg"
-              />
-              <label
-                htmlFor="file-upload"
-                className="mt-4 px-5 py-2.5 rounded-xl bg-white hover:bg-gray-100 text-xs font-bold text-[#0d2a1c] shadow-lg cursor-pointer transition-colors"
-              >
-                Choose File
+              <Upload className="size-8 mx-auto text-[#103a27] mb-2" />
+              <p className="text-xs font-bold text-[#103a27]">
+                {isUploading ? 'Uploading file...' : 'Drag & drop your file here'}
+              </p>
+              <p className="text-[0.65rem] text-gray-400 mt-1">PDF, PNG, JPG (up to 10MB)</p>
+              
+              <label className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#103a27] text-white px-4 py-2 text-xs font-bold hover:bg-[#1a5235] transition-all cursor-pointer">
+                Browse Files
+                <input
+                  type="file"
+                  onChange={handleFileChange}
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  className="hidden"
+                />
               </label>
             </div>
           </div>
 
-          {/* Legal Documents Needed (Dark Green) */}
-          <div className="bg-[#0d2a1c] rounded-2xl border border-white/10 p-6 shadow-xl space-y-4 text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-              <h3 className="font-serif text-base font-bold text-[#a4cc44]">Required Legal Documents</h3>
-              <span className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44] bg-white/10 px-2.5 py-0.5 rounded-md">
-                Compliance Checklist
-              </span>
-            </div>
-            
-            <div className="space-y-3">
+          {/* Pending Requirements Card */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-150 shadow-sm space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+              Required Compliance Slots ({pendingSlots.length} Pending)
+            </h4>
+            <div className="space-y-2">
               {documentSlots.map((slot) => {
-                const isVerified = slot.status === 'VERIFIED'
+                const isAttached = Boolean(slot.fileName || slot.status === 'VERIFIED')
                 return (
-                  <div key={slot.id} className="flex items-start justify-between p-3.5 rounded-xl border border-white/5 bg-[#103a27]/40">
-                    <div className="flex items-start gap-2.5">
-                      <FileText className="size-4.5 text-[#a4cc44] mt-0.5" />
-                      <div>
-                        <p className="text-xs font-bold text-white">{slot.label}</p>
-                        <p className="text-[0.65rem] text-gray-300 mt-0.5">{slot.hint}</p>
-                      </div>
-                    </div>
-                    <div>
-                      {isVerified ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2.5 py-1 text-[0.6rem] font-bold text-emerald-300 border border-emerald-500/20">
-                          <CheckCircle2 className="size-3" />
-                          VERIFIED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2.5 py-1 text-[0.6rem] font-bold text-amber-300 border border-amber-500/20">
-                          <Clock className="size-3" />
-                          PENDING UPLOAD
-                        </span>
-                      )}
-                    </div>
+                  <div key={slot.id} className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 text-xs">
+                    <span className="font-semibold text-gray-700">{slot.label}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[0.65rem] font-bold ${
+                      isAttached ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {isAttached ? 'Attached ✓' : 'Pending'}
+                    </span>
                   </div>
                 )
               })}
@@ -229,66 +177,56 @@ export function DocumentsView({
           </div>
         </div>
 
-        {/* Right Column: Uploaded so far (Dark Green) */}
-        <div className="space-y-6 md:col-span-5">
-          <div className="bg-[#0d2a1c] rounded-2xl border border-white/10 p-6 shadow-xl space-y-4 min-h-[400px] flex flex-col text-white">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-              <h3 className="font-serif text-base font-bold text-[#a4cc44]">Uploaded Log</h3>
-              <span className="text-[0.65rem] font-bold text-white bg-white/10 px-2.5 py-0.5 rounded-md">
-                {uploadedFiles.length} Uploaded
+        {/* Uploaded Documents List */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="bg-white rounded-2xl p-6 border border-gray-150 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-serif text-base font-bold text-[#103a27]">Active Attached Documents</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Verified documents attached to Application <strong className="font-mono text-gray-700">{application.reference}</strong>
+                </p>
+              </div>
+              <span className="rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 text-xs font-bold flex items-center gap-1">
+                <ShieldCheck className="size-3.5" />
+                {attachedDocs.length} Verified
               </span>
             </div>
 
-            {uploadedFiles.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-gray-400">
-                <AlertCircle className="size-10 text-white/20 mb-2" />
-                <p className="text-xs font-bold text-white">No documents uploaded yet</p>
-                <p className="text-[0.65rem] text-gray-300 mt-0.5">Please upload files to complete compliance.</p>
+            {attachedDocs.length === 0 ? (
+              <div className="py-12 text-center text-gray-400 space-y-2">
+                <FileText className="size-8 mx-auto text-gray-300" />
+                <p className="text-xs font-semibold text-gray-600">No documents attached yet.</p>
+                <p className="text-[0.65rem] text-gray-400">Use the upload box on the left to attach your KYC & proof files.</p>
               </div>
             ) : (
-              <div className="flex-1 divide-y divide-white/5 overflow-y-auto space-y-3">
-                {uploadedFiles.map((file) => (
-                  <div key={file.id} className="pt-3 flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2.5">
-                      <div className="size-9 rounded-xl bg-white/5 text-[#a4cc44] flex items-center justify-center shrink-0">
-                        <FileText className="size-5" />
+              <div className="space-y-3">
+                {attachedDocs.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-[#f4f5f4] hover:bg-gray-100/60 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-white text-[#103a27] shrink-0">
+                        <FileText className="size-4 text-[#103a27]" />
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate max-w-[150px]" title={file.fileName}>
-                          {file.fileName}
+                      <div>
+                        <p className="text-xs font-bold text-[#103a27]">{doc.label}</p>
+                        <p className="text-[0.65rem] font-mono text-emerald-700 mt-0.5">
+                          {doc.fileName || `${doc.id}_document.pdf`}
                         </p>
-                        <p className="text-[0.65rem] font-medium text-gray-300 mt-0.5">{file.label}</p>
-                        <p className="text-[0.55rem] text-gray-400 mt-1">{file.size} • {file.uploadedAt}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => alert(`Downloading ${file.fileName}...`)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-gray-300 transition-colors"
-                        title="Download file"
+                        type="button"
+                        onClick={() => handleDelete(doc.id)}
+                        className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg hover:bg-white transition-colors"
+                        title="Remove file"
                       >
-                        <Download className="size-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(file.id, file.slotId)}
-                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors"
-                        title="Delete file"
-                      >
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-4" />
                       </button>
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-            
-            {pendingSlots.length > 0 && (
-              <div className="mt-4 p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 flex items-start gap-2 text-[0.65rem] text-amber-200 leading-relaxed">
-                <AlertCircle className="size-4 shrink-0 text-amber-400 mt-0.5" />
-                <div>
-                  <span className="font-bold">Missing Compliance Files: </span>
-                  You still need to upload documents for {pendingSlots.map(s => s.label).join(', ')}.
-                </div>
               </div>
             )}
           </div>

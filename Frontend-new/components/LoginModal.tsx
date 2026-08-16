@@ -5,13 +5,19 @@ import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog'
 import { ReactNode, useState, useEffect } from 'react'
 
-export function LoginModal({ children }: { children: ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-  const [open, setOpen] = useState(false);
+export function LoginModal({ 
+  children, 
+  className 
+}: { 
+  children?: ReactNode
+  className?: string 
+}) {
+  const [mounted, setMounted] = useState(false)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    setMounted(true)
+  }, [])
 
   const portals = [
     { title: 'Applicant',   href: '/login/applicant' },
@@ -20,7 +26,7 @@ export function LoginModal({ children }: { children: ReactNode }) {
   ]
 
   if (!mounted) {
-    return <>{children}</>;
+    return <span className={className}>{children}</span>
   }
 
   return (
@@ -37,8 +43,8 @@ export function LoginModal({ children }: { children: ReactNode }) {
       `}</style>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          {children}
+        <DialogTrigger className={className || "hover:text-[#103a27]/80 cursor-pointer text-base md:text-lg font-medium bg-transparent border-none p-0 outline-none"}>
+          {children || 'Log in'}
         </DialogTrigger>
         <DialogContent showCloseButton={false} className="sm:max-w-xl border-none !ring-0 bg-transparent shadow-none p-0">
           <DialogClose className="absolute -top-12 right-0 md:-right-12 rounded-full bg-white/50 p-2 text-[#103a27] hover:bg-white/80 transition-colors focus:outline-none">

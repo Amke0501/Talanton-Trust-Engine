@@ -4,17 +4,24 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   fetchApplications,
   createLoanApplication,
+  submitOrUpdateApplication,
+  signAndRouteToCommittee,
   castCommitteeVote as apiCastVote,
+  fetchUserProfile,
+  updateUserProfile,
 } from '@/lib/api-service'
 import {
   INITIAL_APPLICATION,
+  INITIAL_USER_PROFILE,
   type Application,
   type RoleType,
+  type UserProfile,
 } from '@/lib/talenton-data'
 import { ApplicantDashboardView } from '@/components/talenton/applicant-dashboard-view'
 import { ApplicantDashboard } from '@/components/talenton/applicant-dashboard'
 import { LoanApplicationsList } from '@/components/talenton/loan-applications-list'
 import { DocumentsView } from '@/components/talenton/documents-view'
+import { ApplicantProfileSettings } from '@/components/talenton/applicant-profile-settings'
 import { ApplicantSidebar, type SidebarSection } from '@/components/talenton/applicant-sidebar'
 import { CommitteeDashboardView } from '@/components/talenton/committee-dashboard-view'
 import { FloatingNav, type NavItem } from '@/components/talenton/floating-nav'
@@ -32,6 +39,7 @@ import { USER_EMAIL_COOKIE_NAME } from '@/lib/role-access'
 export function DashboardRolePage({ role }: { role: RoleType }) {
   const [application, setApplication] = useState<Application>(INITIAL_APPLICATION)
   const [applications, setApplications] = useState<Application[]>([INITIAL_APPLICATION])
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE)
   const [loading, setLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<SidebarSection>('applicant-dashboard')
   const [activeNav, setActiveNav] = useState<NavItem>('home')
@@ -46,6 +54,10 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
       if (apps && apps.length > 0) {
         setApplication(apps[0])
         setApplications(apps)
+      }
+      const prof = await fetchUserProfile()
+      if (prof) {
+        setUserProfile(prof)
       }
       setLoading(false)
     }
@@ -66,36 +78,81 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
     setApplication((prev) => ({ ...prev, ...updated }))
   }
 
-  async function handleSubmitToUnderwriter() {
+  async function handleSaveDraft(appData: Partial<Application>) {
     setLoading(true)
-    const result = await createLoanApplication({
-      applicantName: application.fullName || 'Amara Trading Ltd',
-      memberId: application.memberId || 'APP-TEST-001',
-      applicantType: application.applicantType || 'cooperative',
-      principal: application.principal || 5000000,
-      purpose: application.purpose || 'Working Capital',
-      tenureMonths: application.tenureMonths || 12,
-      savingsBalance: application.savingsBalance || 2000000,
-      monthlyIncome: application.monthlyIncome || 1500000,
-      monthlyDebt: application.monthlyDebt || 300000,
-      multiplier: application.multiplier || 3.0,
+    const result = await submitOrUpdateApplication(appData.reference, {
+      applicantName: userProfile.fullName || 'Amina K. Nakamya',
+      memberId: userProfile.memberId || 'M-8842',
+      phone: userProfile.phone,
+      email: userProfile.email,
+      applicantType: appData.applicantType || 'individual',
+      principal: appData.principal || 0,
+      purpose: appData.purpose || 'Working Capital',
+      tenureMonths: appData.tenureMonths || 12,
+      savingsBalance: appData.savingsBalance || 0,
+      monthlyIncome: appData.monthlyIncome || 0,
+      monthlyDebt: appData.monthlyDebt || 0,
+      multiplier: appData.multiplier || 3.0,
+      isDraft: true,
+    })
+    setLoading(false)
+    if (result.success && result.data) {
+      const updatedApps = await fetchApplications()
+      setApplications(updatedApps)
+      setApplication(result.data)
+      setActiveSection('applicant-dashboard')
+    }
+  }
+
+  async function handleSubmitToUnderwriter(appData: Partial<Application>) {
+    setLoading(true)
+    const result = await submitOrUpdateApplication(appData.reference, {
+      applicantName: userProfile.fullName || 'Amina K. Nakamya',
+      memberId: userProfile.memberId || 'M-8842',
+      phone: userProfile.phone,
+      email: userProfile.email,
+      applicantType: appData.applicantType || 'individual',
+      principal: appData.principal ?? 15000000,
+      purpose: appData.purpose || 'Working Capital',
+      tenureMonths: appData.tenureMonths || 12,
+      savingsBalance: appData.savingsBalance ?? 4000000,
+      monthlyIncome: appData.monthlyIncome ?? 2500000,
+      monthlyDebt: appData.monthlyDebt ?? 500000,
+      multiplier: appData.multiplier || 3.0,
+      isDraft: false,
     })
 
     setLoading(false)
 
     if (result.success && result.data) {
-      alert(`Application ${result.data.reference} submitted successfully! Status: ${result.data.status.toUpperCase()}`)
+      alert(`Application ${result.data.reference} submitted to Underwriting! Status: ${result.data.status.toUpperCase()}`)
       const updatedApps = await fetchApplications()
-      if (updatedApps && updatedApps.length > 0) {
-        setApplication(updatedApps[0])
-      }
+      setApplications(updatedApps)
+      setApplication(result.data)
+      setActiveSection('loan-applications')
     } else {
       alert(`Unable to submit your application: ${result.error || 'Please try again.'}`)
     }
   }
 
+  async function handleSaveProfile(updated: Partial<UserProfile>) {
+    await updateUserProfile(updated)
+    setUserProfile((prev) => ({ ...prev, ...updated }))
+  }
+
   async function handleRouteToCommittee() {
-    alert('File routed to Committee Board successfully.')
+    setLoading(true)
+    await signAndRouteToCommittee(application.reference, {
+      appraisalOfficer: application.appraisalOfficer || 'Agaba Collins (Risk Division)',
+      signature: application.securitySignature || 'OTP Signed (Verified)',
+      verdict: application.verdict || 'APPROVED',
+    })
+    const updatedApps = await fetchApplications()
+    setApplications(updatedApps)
+    setLoading(false)
+    alert(`File ${application.reference} routed to Committee Board successfully.`)
+    setActiveUnderwriterAudit(false)
+    setActiveNav('applications')
   }
 
   async function handleCastVote(memberRole: string, vote: 'APPROVE' | 'REJECT' | 'ABSTAIN') {
@@ -180,10 +237,15 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
           application={application}
           onUpdateApplication={handleUpdateApplication}
           onSubmitToUnderwriter={handleSubmitToUnderwriter}
+          onSaveDraft={handleSaveDraft}
           onClose={() => setActiveSection('applicant-dashboard')}
         />
       )
     }
+
+    const myApplications = applications.filter(
+      (a) => a.memberId === userProfile.memberId || a.email === userProfile.email || !a.memberId
+    )
 
     return (
       <div className="flex min-h-screen text-foreground font-sans">
@@ -201,18 +263,33 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
             {activeSection === 'applicant-dashboard' ? (
               <ApplicantDashboard
                 userName={userName}
-                applications={applications}
-                onNew={() => setActiveSection('pipeline')}
+                applications={myApplications}
+                onNew={() => {
+                  setApplication(INITIAL_APPLICATION)
+                  setActiveSection('pipeline')
+                }}
+                onResumeDraft={(draft) => {
+                  setApplication(draft)
+                  setActiveSection('pipeline')
+                }}
               />
             ) : activeSection === 'loan-applications' ? (
               <LoanApplicationsList
-                applications={applications}
-                onNew={() => setActiveSection('pipeline')}
+                applications={myApplications}
+                onNew={() => {
+                  setApplication(INITIAL_APPLICATION)
+                  setActiveSection('pipeline')
+                }}
               />
             ) : activeSection === 'documents' ? (
               <DocumentsView
                 application={application}
                 onUpdateDocuments={(docs) => handleUpdateApplication({ documents: docs })}
+              />
+            ) : activeSection === 'settings' ? (
+              <ApplicantProfileSettings
+                profile={userProfile}
+                onSaveProfile={handleSaveProfile}
               />
             ) : (
               <div className="bg-white rounded-2xl border border-gray-150 p-8 text-center text-sm text-muted-foreground shadow-sm">

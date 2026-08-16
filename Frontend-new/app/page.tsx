@@ -5,19 +5,13 @@ import { LoginModal } from '@/components/LoginModal'
 import { VideoModal } from '@/components/VideoModal'
 import { ArrowRight, Play } from 'lucide-react'
 
-function LoginButton() {
-  return (
-    <button className="hover:text-[#103a27]/80 cursor-pointer text-base md:text-lg font-medium">Log in</button>
-  )
-}
-
 export default function RootPage() {
   return (
     <div className="min-h-screen bg-[#eaf4e5] text-[#103a27] font-sans flex flex-col">
 
       {/* Navbar — sits on the fallback color, above the hero bg */}
       <nav className="anim-nav flex items-center justify-between px-8 py-5 w-full z-10 bg-[#eaf4e5]">
-        <div className="text-3xl font-serif font-bold text-[#103a27]">Talenton.</div>
+        <div className="text-3xl font-serif font-bold text-[#103a27]">Talanton.</div>
         <div className="hidden md:flex items-center gap-7 text-sm font-medium rounded-full bg-[#103a27]/6 px-7 py-2.5">
           <Link href="#" className="hover:text-[#103a27]/70">Solution</Link>
           <span className="text-[#103a27]/25">•</span>
@@ -31,7 +25,7 @@ export default function RootPage() {
         </div>
         <div className="flex items-center gap-5 text-base font-medium">
           <LoginModal>
-            <LoginButton />
+            Log in
           </LoginModal>
           <button className="rounded-full bg-[#103a27] text-white px-5 py-2.5 text-sm font-semibold hover:bg-[#124a31] transition-colors flex items-center gap-2 cursor-pointer">
             Sign up
@@ -53,14 +47,12 @@ export default function RootPage() {
               A better way to offer credit access to your members
             </h1>
             <p className="anim-sub mt-6 text-[#2a5040]/80 text-base md:text-lg max-w-lg">
-              Talenton offers secure credit access to SACCO members with the lowest-risk and lowest cost to cooperatives in the market.
+              Talanton offers secure credit access to SACCO members with the lowest-risk and lowest cost to cooperatives in the market.
             </p>
             <div className="anim-buttons mt-10 flex flex-wrap items-center gap-4">
-              <LoginModal>
-                <button className="rounded-full bg-[#103a27] text-white px-7 py-3.5 text-base font-semibold hover:bg-[#124a31] transition-colors flex items-center gap-3 cursor-pointer">
-                  Get started
-                  <span className="bg-white text-[#103a27] rounded-full p-1.5"><ArrowRight className="size-4" strokeWidth={2.5} /></span>
-                </button>
+              <LoginModal className="rounded-full bg-[#103a27] text-white px-7 py-3.5 text-base font-semibold hover:bg-[#124a31] transition-colors flex items-center gap-3 cursor-pointer">
+                Get started
+                <span className="bg-white text-[#103a27] rounded-full p-1.5"><ArrowRight className="size-4" strokeWidth={2.5} /></span>
               </LoginModal>
               <VideoModal>
                 <button className="rounded-full bg-white/60 border border-[#103a27]/15 text-[#103a27] px-7 py-3.5 text-base font-semibold hover:bg-white/90 transition-colors flex items-center gap-3 cursor-pointer">

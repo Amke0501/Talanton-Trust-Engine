@@ -10,14 +10,23 @@ import {
   ShieldCheck,
   Trash2,
   UserCheck,
+  FileText,
+  FileCheck,
+  Sparkles,
+  Award,
+  Building,
+  User,
+  XCircle,
+  Clock
 } from 'lucide-react'
 import {
   formatUGX,
   type Application,
   type Guarantor,
+  type DocumentSlot,
 } from '@/lib/talenton-data'
 import { Card, CardBody } from '@/components/talenton/primitives'
-import { CreditPassportPanel } from '@/components/talenton/credit-passport-panel'
+import { verifyDocument } from '@/lib/api-service'
 
 export function UnderwriterDashboardView({
   application,
@@ -35,42 +44,68 @@ export function UnderwriterDashboardView({
   const [savingsBalance, setSavingsBalance] = useState(application.savingsBalance || 4_000_000)
   const [basicPay, setBasicPay] = useState(application.monthlyIncome || 2_500_000)
   const [monthlyDeductions, setMonthlyDeductions] = useState(application.monthlyDebt || 500_000)
+  
+  const [documents, setDocuments] = useState<DocumentSlot[]>(
+    application.documents || [
+      { id: 'id', label: 'National ID / NIN', hint: 'Mandatory KYC identification.', required: true, status: 'VERIFIED', fileName: 'national_id.pdf' },
+      { id: 'payslip', label: 'Certified Payslip / Ledger', hint: 'Payroll data.', required: true, status: 'PENDING', fileName: 'payslip_aug2026.pdf' },
+      { id: 'guarantor', label: 'Guarantor Consent Letter', hint: 'Social collateral.', required: true, status: 'VERIFIED', fileName: 'guarantor_consent.pdf' },
+    ]
+  )
+
   const [guarantors, setGuarantors] = useState<Guarantor[]>(application.guarantors || [
     { id: 'g1', name: 'Kato Joseph', memberId: 'M-1104', pledgedShares: 8_000_000, availableShares: 8_000_000 },
     { id: 'g2', name: 'Namatovu Sarah', memberId: 'M-2309', pledgedShares: 5_000_000, availableShares: 9_500_000 },
   ])
 
+  // Qualitative Audit State
+  const [crbCategory, setCrbCategory] = useState(application.crbCategory || 'Category B: Minor Delinquencies (< 30 Days)')
+  const [crbScore, setCrbScore] = useState(application.crbScore || 685)
+  const [characterAudit, setCharacterAudit] = useState(application.fieldAuditCharacter || 'KYC verified, market association references passed.')
+  const [capacityAudit, setCapacityAudit] = useState(application.fieldAuditCapacity || 'OCR reconstructed revenue matches declared flows.')
+  const [collateralAudit, setCollateralAudit] = useState(application.fieldAuditCollateral || 'Business stocks or social assets physically validated.')
+
   const [showAddGuarantorModal, setShowAddGuarantorModal] = useState(false)
   const [newGName, setNewGName] = useState('')
   const [newGMemberId, setNewGMemberId] = useState('')
   const [newGPledged, setNewGPledged] = useState('')
+  const [isSigning, setIsSigning] = useState(false)
 
-  // Calculate live guardrails
+  // ----------------------------------------------------
+  // Guardrail Check Engine Computations
+  // ----------------------------------------------------
   const maxCap = savingsBalance * multiplier
   const estMonthlyPayment = tenure > 0 ? (requestedCapital / tenure) : 0
-  const residualNetPay = basicPay - monthlyDeductions - estMonthlyPayment
-  const minOneThirdReq = basicPay / 3.0
-  const dtiRatio = basicPay > 0 ? ((monthlyDeductions + estMonthlyPayment) / basicPay) * 100 : 82.0
+  const totalMonthlyCommitments = monthlyDeductions + estMonthlyPayment
+  const dtiRatio = basicPay > 0 ? (totalMonthlyCommitments / basicPay) * 100 : 0
+  const residualNetPay = basicPay - totalMonthlyCommitments
 
   const depositMultiplierPassed = requestedCapital <= maxCap
-  const oneThirdPayPassed = residualNetPay >= minOneThirdReq
-  
-  const totalPledged = guarantors.reduce((sum, g) => sum + g.pledgedShares, 0)
-  const unsecuredExposure = Math.max(0, requestedCapital - savingsBalance)
-  const guarantorCoverPassed = totalPledged >= unsecuredExposure
+  const oneThirdPayPassed = basicPay > 0 && residualNetPay >= basicPay / 3
+  const totalPledged = guarantors.reduce((acc, g) => acc + g.pledgedShares, 0)
+  const requiredGuarantorCover = Math.max(0, requestedCapital - savingsBalance)
+  const guarantorCoverPassed = totalPledged >= requiredGuarantorCover
 
-  const overallDeclined = !depositMultiplierPassed || !oneThirdPayPassed
+  const overallPassed = depositMultiplierPassed && oneThirdPayPassed && guarantorCoverPassed
+
+  // Verify Document Action
+  async function handleVerifyDoc(slotId: string, status: 'VERIFIED' | 'REJECTED') {
+    const updated = documents.map((d) => (d.id === slotId ? { ...d, status } : d))
+    setDocuments(updated)
+    onUpdateApplication({ documents: updated })
+    await verifyDocument(application.reference, slotId, status)
+  }
 
   function handleAddGuarantorSubmit() {
     if (!newGName || !newGPledged) return
-    const g: Guarantor = {
-      id: crypto.randomUUID(),
+    const newG: Guarantor = {
+      id: `g-${Date.now()}`,
       name: newGName,
-      memberId: newGMemberId || `M-${Math.floor(1000 + Math.random() * 8999)}`,
+      memberId: newGMemberId || `M-${Math.floor(1000 + Math.random() * 9000)}`,
       pledgedShares: Number(newGPledged) || 0,
       availableShares: Number(newGPledged) || 0,
     }
-    const updated = [...guarantors, g]
+    const updated = [...guarantors, newG]
     setGuarantors(updated)
     onUpdateApplication({ guarantors: updated })
     setNewGName('')
@@ -85,428 +120,412 @@ export function UnderwriterDashboardView({
     onUpdateApplication({ guarantors: updated })
   }
 
+  async function handleSignAndRoute() {
+    setIsSigning(true)
+    const updatedFields: Partial<Application> = {
+      applicantType: classification,
+      multiplier,
+      tenureMonths: tenure,
+      principal: requestedCapital,
+      savingsBalance,
+      monthlyIncome: basicPay,
+      monthlyDebt: monthlyDeductions,
+      basicMonthlyPay: basicPay,
+      monthlyDeductions,
+      dtiNetRatio: dtiRatio,
+      netTakeHome: residualNetPay,
+      guardrailDepositMultiplierPassed: depositMultiplierPassed,
+      guardrailOneThirdPayPassed: oneThirdPayPassed,
+      guardrailGuarantorPassed: guarantorCoverPassed,
+      verdict: overallPassed ? 'APPROVED' : 'DECLINED',
+      guarantors,
+      crbCategory,
+      crbScore,
+      fieldAuditCharacter: characterAudit,
+      fieldAuditCapacity: capacityAudit,
+      fieldAuditCollateral: collateralAudit,
+      appraisalOfficer: 'Agaba Collins (Risk Division)',
+      securitySignature: 'OTP Signed (Verified)',
+      stage: 'committee',
+      status: 'in_review',
+      statusNote: 'Underwriting audit completed and digitally signed. Awaiting Committee Board Quorum vote.',
+    }
+    onUpdateApplication(updatedFields)
+    setIsSigning(false)
+    onRouteToCommittee()
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-12">
-      {/* LEFT COLUMN: Override Inputs & Guarantor Audit */}
-      <div className="space-y-6 lg:col-span-5">
-        {/* Officer Override Inputs */}
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex items-center gap-2 pb-3 border-b border-border">
-              <UserCheck className="size-4 text-[#103a27]" />
-              <h3 className="font-serif text-sm font-bold text-[#103a27]">
-                Officer Override Inputs
-              </h3>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                Borrower Classification
-              </label>
-              <select
-                value={classification}
-                onChange={(e) => setClassification(e.target.value as any)}
-                className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold text-foreground focus:border-[#103a27] focus:outline-none"
-              >
-                <option value="individual">BOSA Member</option>
-                <option value="cooperative">Cooperative / SME</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Multiplier
-                </label>
-                <select
-                  value={multiplier}
-                  onChange={(e) => setMultiplier(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold focus:border-[#103a27] focus:outline-none"
-                >
-                  <option value={2}>2x</option>
-                  <option value={3}>3x</option>
-                  <option value={4}>4x</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Tenure (Months)
-                </label>
-                <input
-                  type="number"
-                  value={tenure}
-                  onChange={(e) => setTenure(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Requested Capital (UGX)
-                </label>
-                <input
-                  type="number"
-                  value={requestedCapital}
-                  onChange={(e) => setRequestedCapital(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-bold text-[#103a27] focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Savings Balance (UGX)
-                </label>
-                <input
-                  type="number"
-                  value={savingsBalance}
-                  onChange={(e) => setSavingsBalance(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Basic Monthly Pay
-                </label>
-                <input
-                  type="number"
-                  value={basicPay}
-                  onChange={(e) => setBasicPay(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                  Monthly Deductions
-                </label>
-                <input
-                  type="number"
-                  value={monthlyDeductions}
-                  onChange={(e) => setMonthlyDeductions(Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-2.5 text-xs font-semibold focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Guarantor Coverage Audit */}
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-[#103a27]" />
-                <h3 className="font-serif text-sm font-bold text-[#103a27]">
-                  Guarantor Coverage Audit
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddGuarantorModal(true)}
-                className="flex items-center gap-1 rounded-full border border-[#103a27]/30 bg-[#eaf4e5] px-2.5 py-1 text-[0.65rem] font-bold text-[#103a27] hover:bg-[#dbead5]"
-              >
-                <Plus className="size-3" />
-                Add Guarantor
-              </button>
-            </div>
-
-            <p className="text-[0.7rem] text-muted-foreground">
-              Guarantor commitments must offset the unsecured exposure gap.
-            </p>
-
-            <div className="space-y-3">
-              {guarantors.map((g) => (
-                <div
-                  key={g.id}
-                  className="flex items-center justify-between rounded-xl border border-border bg-muted/20 p-3"
-                >
-                  <div>
-                    <p className="text-xs font-bold text-foreground">
-                      {g.name} <span className="text-muted-foreground">({g.memberId})</span>
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-2 text-[0.65rem] text-muted-foreground sm:gap-4">
-                      <span>PLEDGED (UGX): <strong className="text-[#103a27]">{g.pledgedShares.toLocaleString()}</strong></span>
-                      <span>AVAILABLE SHARES: <strong className="text-emerald-700">{(g.availableShares || g.pledgedShares).toLocaleString()}</strong></span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveGuarantor(g.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-1"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2 border-t border-border space-y-1 text-xs">
-              <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">Unsecured Exposure:</span>
-                <span className="font-mono font-bold text-[#103a27]">{formatUGX(unsecuredExposure)}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span className="text-muted-foreground">Total Pledged:</span>
-                <span className="font-mono font-bold text-emerald-700">{formatUGX(totalPledged)}</span>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* RIGHT COLUMN: Guardrail Engine & Synthesis Report */}
-      <div className="space-y-6 lg:col-span-7">
-        {/* Underwriting Guardrail Check Engine Card */}
-        <div className="rounded-2xl bg-[#071d13] p-6 text-white shadow-2xl border border-white/10 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="size-5 text-[#a4cc44]" />
-              <h3 className="font-serif text-base font-bold text-white">
-                Underwriting Guardrail Check Engine
-              </h3>
-            </div>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                overallDeclined
-                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-              }`}
-            >
-              {overallDeclined ? 'DECLINED' : 'APPROVED'}
+    <div className="space-y-8 max-w-6xl mx-auto">
+      
+      {/* File Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-serif font-bold text-[#103a27]">{application.fullName}</h2>
+            <span className="font-mono text-xs bg-[#0d2a1c] text-[#a4cc44] px-2.5 py-1 rounded-full font-bold">
+              {application.reference}
             </span>
           </div>
-
-          {/* Key Metric Tiles */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-white/5 p-3.5 border border-white/10">
-              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">
-                DTI NET RATIO
-              </p>
-              <p className="mt-1 text-xl font-bold text-emerald-400">{dtiRatio.toFixed(1)}%</p>
-              <p className="mt-1 text-[0.6rem] text-white/40">Max Statutory: 50%</p>
-            </div>
-
-            <div className="rounded-xl bg-white/5 p-3.5 border border-white/10">
-              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">
-                SAVINGS MULTIPLIER
-              </p>
-              <p className="mt-1 text-xl font-bold text-emerald-400">
-                {(requestedCapital / savingsBalance).toFixed(2)}x
-              </p>
-              <p className="mt-1 text-[0.6rem] text-white/40">Allowed: 2x or 3x</p>
-            </div>
-
-            <div className="rounded-xl bg-white/5 p-3.5 border border-white/10">
-              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-white/50">
-                NET TAKE-HOME
-              </p>
-              <p className="mt-1 text-base font-bold text-white font-mono">
-                UGX {residualNetPay.toLocaleString()}
-              </p>
-              <p className="mt-1 text-[0.6rem] text-white/40">Statutory 1/3 Limit Check</p>
-            </div>
-          </div>
-
-          {/* Policy Validation Engine Rules */}
-          <div className="space-y-3 pt-2 border-t border-white/10">
-            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44]">
-              POLICY VALIDATION ENGINE
-            </p>
-
-            {/* Check 1 */}
-            <div className="flex items-start justify-between rounded-xl bg-white/5 p-3 border border-white/5">
-              <div className="flex items-start gap-2.5">
-                {depositMultiplierPassed ? (
-                  <CheckCircle2 className="size-4 text-emerald-400 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="size-4 text-rose-400 mt-0.5" />
-                )}
-                <div>
-                  <p className="text-xs font-bold text-white">Deposit Multiplier Bound Check</p>
-                  <p className="text-[0.65rem] text-white/60">
-                    {depositMultiplierPassed
-                      ? 'Within limit ceiling.'
-                      : `Boundary breach: Requested amount exceeds the multiplier ceiling of ${formatUGX(maxCap)}.`}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`text-[0.65rem] font-bold ${
-                  depositMultiplierPassed ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {depositMultiplierPassed ? 'Passed' : 'Failed'}
-              </span>
-            </div>
-
-            {/* Check 2 */}
-            <div className="flex items-start justify-between rounded-xl bg-white/5 p-3 border border-white/5">
-              <div className="flex items-start gap-2.5">
-                {oneThirdPayPassed ? (
-                  <CheckCircle2 className="size-4 text-emerald-400 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="size-4 text-rose-400 mt-0.5" />
-                )}
-                <div>
-                  <p className="text-xs font-bold text-white">One-Third Statutory Net-Pay Check</p>
-                  <p className="text-[0.65rem] text-white/60">
-                    {oneThirdPayPassed
-                      ? 'Residual pay satisfies minimum 1/3 threshold.'
-                      : `Statutory violation: Projected residual net pay (${formatUGX(residualNetPay)}) falls below the statutory 1/3 minimum.`}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`text-[0.65rem] font-bold ${
-                  oneThirdPayPassed ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {oneThirdPayPassed ? 'Passed' : 'Failed'}
-              </span>
-            </div>
-
-            {/* Check 3 */}
-            <div className="flex items-start justify-between rounded-xl bg-white/5 p-3 border border-white/5">
-              <div className="flex items-start gap-2.5">
-                {guarantorCoverPassed ? (
-                  <CheckCircle2 className="size-4 text-emerald-400 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="size-4 text-rose-400 mt-0.5" />
-                )}
-                <div>
-                  <p className="text-xs font-bold text-white">Guarantor Exposure & Share Cover</p>
-                  <p className="text-[0.65rem] text-white/60">
-                    {guarantorCoverPassed
-                      ? 'Social coverage cleared: pledged guarantor shares cover the uncollateralized exposure deficit.'
-                      : 'Insufficient guarantor coverage.'}
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`text-[0.65rem] font-bold ${
-                  guarantorCoverPassed ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {guarantorCoverPassed ? 'Passed' : 'Failed'}
-              </span>
-            </div>
-          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            SACCO ID: <strong className="text-gray-700">{application.memberId}</strong> &bull; Facility: <strong className="text-gray-700">{application.purpose}</strong> &bull; Submitted: {application.submittedOn}
+          </p>
         </div>
 
-        {/* Underwriter Synthesis Report */}
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <h3 className="font-serif text-sm font-bold text-[#103a27]">
-                Underwriter Synthesis Report
-              </h3>
-              <span className="text-[0.65rem] text-muted-foreground">
-                Generated: August 4, 2026
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+            overallPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+          }`}>
+            Guardrail Engine: {overallPassed ? 'RECOMMENDED FOR APPROVAL' : 'GUARDRAIL BREACH / DECLINED'}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-12">
+        
+        {/* LEFT COLUMN: Document Verification & Parameters Override */}
+        <div className="lg:col-span-6 space-y-6">
+          
+          {/* Document Verification Card */}
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <FileCheck className="size-4 text-[#103a27]" />
+                  <h3 className="font-serif text-sm font-bold text-[#103a27]">Compliance & Document Verification</h3>
+                </div>
+                <span className="text-xs text-gray-400 font-medium">Click to verify</span>
+              </div>
+
+              <div className="space-y-3">
+                {documents.map((doc) => {
+                  const isVerified = doc.status === 'VERIFIED'
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 bg-[#f4f5f4]">
+                      <div>
+                        <p className="text-xs font-bold text-[#103a27]">{doc.label}</p>
+                        <p className="text-[0.65rem] text-gray-500">{doc.fileName || 'Uploaded file'}</p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyDoc(doc.id, isVerified ? 'REJECTED' : 'VERIFIED')}
+                          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                            isVerified 
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-emerald-100 hover:text-emerald-800'
+                          }`}
+                        >
+                          {isVerified ? 'Verified ✓' : 'Mark Verified'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Underwriter Parameter Overrides */}
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-[#103a27]" />
+                  <h3 className="font-serif text-sm font-bold text-[#103a27]">Live Policy Overrides</h3>
+                </div>
+                <span className="text-[0.65rem] font-bold uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                  Real-time Sync
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[0.65rem] font-bold uppercase text-gray-500">Approved Principal (UGX)</label>
+                  <input
+                    type="number"
+                    value={requestedCapital}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      setRequestedCapital(val)
+                      onUpdateApplication({ principal: val })
+                    }}
+                    className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[0.65rem] font-bold uppercase text-gray-500">Multiplier ({multiplier.toFixed(1)}x)</label>
+                  <input
+                    type="range"
+                    min="2"
+                    max="5"
+                    step="0.25"
+                    value={multiplier}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      setMultiplier(val)
+                      onUpdateApplication({ multiplier: val })
+                    }}
+                    className="w-full accent-[#103a27] mt-3"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[0.65rem] font-bold uppercase text-gray-500">Tenure (Months)</label>
+                  <input
+                    type="number"
+                    value={tenure}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      setTenure(val)
+                      onUpdateApplication({ tenureMonths: val })
+                    }}
+                    className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[0.65rem] font-bold uppercase text-gray-500">Savings Base (UGX)</label>
+                  <input
+                    type="number"
+                    value={savingsBalance}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      setSavingsBalance(val)
+                      onUpdateApplication({ savingsBalance: val })
+                    }}
+                    className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-bold text-gray-800 font-mono focus:outline-none focus:border-[#103a27]"
+                  />
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Guarantor Coverage Management */}
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="size-4 text-[#103a27]" />
+                  <h3 className="font-serif text-sm font-bold text-[#103a27]">Guarantor Coverage Audit</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddGuarantorModal(true)}
+                  className="flex items-center gap-1 rounded-full bg-[#103a27] text-white px-3 py-1 text-xs font-bold hover:bg-[#1a5235]"
+                >
+                  <Plus className="size-3" />
+                  Add Guarantor
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {guarantors.map((g) => (
+                  <div key={g.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-[#f4f5f4]">
+                    <div>
+                      <p className="text-xs font-bold text-[#103a27]">{g.name} <span className="text-gray-500 font-mono text-[0.65rem]">({g.memberId})</span></p>
+                      <p className="text-[0.65rem] text-gray-500 mt-0.5">Pledged: <strong className="text-gray-800 font-mono">{formatUGX(g.pledgedShares)}</strong></p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGuarantor(g.id)}
+                      className="text-gray-400 hover:text-rose-600 p-1"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2 flex justify-between text-xs font-semibold">
+                <span className="text-gray-500">Total Pledged Cover:</span>
+                <span className={`font-mono font-bold ${guarantorCoverPassed ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {formatUGX(totalPledged)} / {formatUGX(requiredGuarantorCover)} required
+                </span>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+
+        {/* RIGHT COLUMN: Guardrail Check Engine & Qualitative Audits */}
+        <div className="lg:col-span-6 space-y-6">
+          
+          {/* Automated Guardrail Check Engine Card */}
+          <div className="rounded-2xl bg-[#0d2a1c] p-6 text-white shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-5 text-[#a4cc44]" />
+                <h3 className="font-serif text-sm font-bold text-white">Underwriting Guardrail Check Engine</h3>
+              </div>
+              <span className="text-[0.65rem] font-bold uppercase text-[#a4cc44] bg-white/10 px-2 py-0.5 rounded-full">
+                Automated
               </span>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2">
-              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
-                EXECUTIVE RISK REVIEW SUMMARY
-              </p>
-              <p className="text-xs font-medium leading-relaxed text-foreground">
-                File <span className="font-mono font-bold text-[#103a27]">{application.reference}</span> is{' '}
-                <strong className={overallDeclined ? 'text-rose-600' : 'text-emerald-700'}>
-                  {overallDeclined ? 'declined' : 'recommended for approval'}
-                </strong>
-                . {overallDeclined ? 'BOSA multiplier breach; Payslip take-home deficit.' : 'All statutory risk guardrails satisfied.'}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 text-xs pt-1 sm:grid-cols-2">
-              <div>
-                <span className="text-muted-foreground block text-[0.65rem]">Appraisal Officer:</span>
-                <span className="font-semibold text-foreground">Agaba Collins (Risk Division)</span>
+            <div className="space-y-3">
+              {/* Check 1: Multiplier Cap */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Deposit Multiplier Bound</p>
+                  <p className="text-[0.65rem] text-gray-300 mt-0.5">Cap: {formatUGX(maxCap)} ({multiplier}x savings)</p>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  depositMultiplierPassed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {depositMultiplierPassed ? 'PASSED ✓' : 'BREACH ✕'}
+                </span>
               </div>
-              <div>
-                <span className="text-muted-foreground block text-[0.65rem]">Security Signature:</span>
-                <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                  <CheckCircle2 className="size-3" /> OTP Signed (Verified)
+
+              {/* Check 2: 1/3 Statutory Net Pay */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">1/3 Statutory Net-Pay Check</p>
+                  <p className="text-[0.65rem] text-gray-300 mt-0.5">Residual Take-Home: {formatUGX(residualNetPay)} (DTI: {dtiRatio.toFixed(1)}%)</p>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  oneThirdPayPassed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {oneThirdPayPassed ? 'PASSED ✓' : 'VIOLATION ✕'}
+                </span>
+              </div>
+
+              {/* Check 3: Guarantor Coverage */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Guarantor & Share Cover</p>
+                  <p className="text-[0.65rem] text-gray-300 mt-0.5">Coverage ratio: {guarantorCoverPassed ? '100% Secured' : 'Uncollateralized Gap'}</p>
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                  guarantorCoverPassed ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                }`}>
+                  {guarantorCoverPassed ? 'PASSED ✓' : 'DEFICIT ✕'}
                 </span>
               </div>
             </div>
+          </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                // Flush all computed underwriting values into shared application state
-                // so the Committee frozen stats panel reads live numbers, not seed data
-                onUpdateApplication({
-                  multiplier,
-                  tenureMonths: tenure,
-                  principal: requestedCapital,
-                  savingsBalance,
-                  monthlyIncome: basicPay,
-                  monthlyDebt: monthlyDeductions,
-                  basicMonthlyPay: basicPay,
-                  monthlyDeductions,
-                  dtiNetRatio: dtiRatio,
-                  netTakeHome: residualNetPay,
-                  guardrailDepositMultiplierPassed: depositMultiplierPassed,
-                  guardrailOneThirdPayPassed: oneThirdPayPassed,
-                  guardrailGuarantorPassed: guarantorCoverPassed,
-                  verdict: overallDeclined ? 'DECLINED' : 'APPROVED',
-                  guarantors,
-                })
-                onRouteToCommittee()
-              }}
-              className="w-full flex items-center justify-center gap-2 rounded-full bg-[#103a27] py-3.5 text-xs font-bold text-white shadow-md hover:bg-[#1a5235] transition-all"
-            >
-              <Send className="size-3.5" />
-              Route to Committee Board
-            </button>
-          </CardBody>
-        </Card>
+          {/* Credit Officer Qualitative Audits Card */}
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Award className="size-4 text-[#103a27]" />
+                  <h3 className="font-serif text-sm font-bold text-[#103a27]">Credit Officer Qualitative Audits</h3>
+                </div>
+                <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                  CRB Verified
+                </span>
+              </div>
+
+              {/* CRB Record Section */}
+              <div className="rounded-xl border border-gray-100 bg-[#f4f5f4] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-[#103a27]">Credit Reference Bureau (CRB) Record</p>
+                  <span className="font-mono text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
+                    Score: {crbScore}/900
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-gray-700">
+                  {crbCategory}
+                </p>
+                <p className="text-[0.65rem] text-gray-500">
+                  No active default records. Historic slow repayment resolved within statutory grace period.
+                </p>
+              </div>
+
+              {/* On-Site Field Audit Milestones */}
+              <div className="space-y-2.5 pt-1">
+                <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400">On-Site Field Audit Milestones</p>
+                
+                <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-1">
+                  <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    Character Assessment
+                  </p>
+                  <p className="text-[0.65rem] text-gray-500">{characterAudit}</p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-1">
+                  <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    Capacity Validation
+                  </p>
+                  <p className="text-[0.65rem] text-gray-500">{capacityAudit}</p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-1">
+                  <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    Collateral & Stocks
+                  </p>
+                  <p className="text-[0.65rem] text-gray-500">{collateralAudit}</p>
+                </div>
+              </div>
+
+              {/* Digital Sign-off & Route Action */}
+              <div className="pt-4 border-t border-gray-100 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Appraisal Officer Signature:</span>
+                  <span className="font-semibold text-emerald-800 flex items-center gap-1">
+                    <CheckCircle2 className="size-3 text-emerald-600" /> OTP Verified (Agaba Collins)
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSignAndRoute}
+                  disabled={isSigning}
+                  className="w-full flex items-center justify-center gap-2 rounded-full bg-[#103a27] py-3.5 text-xs font-bold text-white shadow-md hover:bg-[#1a5235] transition-all cursor-pointer"
+                >
+                  <Send className="size-3.5" />
+                  {isSigning ? 'Signing & Routing...' : 'Digitally Sign & Route to Committee Board'}
+                </button>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+
       </div>
 
       {/* Add Guarantor Modal */}
       {showAddGuarantorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4 animate-scaleUp">
             <h4 className="font-serif text-base font-bold text-[#103a27]">Add Guarantor Commitment</h4>
             
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-muted-foreground">Guarantor Name</label>
+                <label className="text-xs font-bold text-gray-700">Guarantor Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Kato Joseph"
                   value={newGName}
                   onChange={(e) => setNewGName(e.target.value)}
-                  className="w-full rounded-xl border border-border p-2.5 text-xs font-semibold focus:outline-none"
+                  className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:border-[#103a27]"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-muted-foreground">Member ID</label>
+                <label className="text-xs font-bold text-gray-700">Member ID</label>
                 <input
                   type="text"
                   placeholder="e.g. M-1104"
                   value={newGMemberId}
                   onChange={(e) => setNewGMemberId(e.target.value)}
-                  className="w-full rounded-xl border border-border p-2.5 text-xs font-semibold focus:outline-none"
+                  className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-semibold focus:outline-none focus:border-[#103a27]"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-muted-foreground">Pledged Shares (UGX)</label>
+                <label className="text-xs font-bold text-gray-700">Pledged Shares (UGX)</label>
                 <input
                   type="number"
                   placeholder="e.g. 5000000"
                   value={newGPledged}
                   onChange={(e) => setNewGPledged(e.target.value)}
-                  className="w-full rounded-xl border border-border p-2.5 text-xs font-bold text-[#103a27] focus:outline-none"
+                  className="w-full rounded-xl border border-gray-200 p-2.5 text-xs font-bold text-[#103a27] font-mono focus:outline-none focus:border-[#103a27]"
                 />
               </div>
             </div>
@@ -515,14 +534,14 @@ export function UnderwriterDashboardView({
               <button
                 type="button"
                 onClick={() => setShowAddGuarantorModal(false)}
-                className="rounded-full bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground"
+                className="rounded-full bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-200"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleAddGuarantorSubmit}
-                className="rounded-full bg-[#103a27] px-4 py-2 text-xs font-bold text-white"
+                className="rounded-full bg-[#103a27] px-5 py-2 text-xs font-bold text-white hover:bg-[#1a5235]"
               >
                 Add Guarantor
               </button>
@@ -531,9 +550,6 @@ export function UnderwriterDashboardView({
         </div>
       )}
 
-      <div className="lg:col-span-12">
-        <CreditPassportPanel />
-      </div>
     </div>
   )
 }

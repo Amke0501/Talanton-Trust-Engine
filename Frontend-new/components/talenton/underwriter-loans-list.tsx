@@ -11,7 +11,9 @@ export function UnderwriterLoansList({
   applications: Application[]
   onSelectApplication: (app: Application) => void
 }) {
-  const pendingApps = applications.filter((a) => a.stage === 'underwriting')
+  const pendingApps = applications.filter(
+    (a) => a.status !== 'draft' && a.stage !== 'draft' && a.stage !== 'committee' && a.stage !== 'disbursed'
+  )
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

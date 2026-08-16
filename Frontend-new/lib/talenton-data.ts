@@ -99,6 +99,30 @@ export interface CreditPassportMember {
   lastLoanDate: string
 }
 
+export interface UserProfile {
+  id: string
+  fullName: string
+  memberId: string
+  email: string
+  phone: string
+  address: string
+  employerOrBusiness: string
+  monthlyIncome: number
+  role: RoleType
+}
+
+export const INITIAL_USER_PROFILE: UserProfile = {
+  id: 'usr-001',
+  fullName: 'Amina K. Nakamya',
+  memberId: 'M-8842',
+  email: 'applicant@talanton.io',
+  phone: '+256 701 445 889',
+  address: 'Plot 14 Jinja Road, Kampala, Uganda',
+  employerOrBusiness: 'Grace Retail & General Supplies Ltd',
+  monthlyIncome: 2_500_000,
+  role: 'applicant',
+}
+
 export interface Application extends ApplicationDraft {
   id: string
   reference: string
@@ -118,6 +142,14 @@ export interface Application extends ApplicationDraft {
   appraisalOfficer?: string
   securitySignature?: string
   committeeVotes?: BoardMemberVote[]
+  
+  // Qualitative Audits
+  crbCategory?: string
+  crbScore?: number
+  fieldAuditCharacter?: string
+  fieldAuditCapacity?: string
+  fieldAuditCollateral?: string
+  disbursedAt?: string
 }
 
 export const CLASSIFICATION_LABEL: Record<ApplicantType, string> = {
@@ -393,96 +425,7 @@ export const SEED_PASSPORT_MEMBERS: CreditPassportMember[] = [
   },
 ]
 
-export const SEED_APPLICATIONS: Application[] = [
-  {
-    ...INITIAL_APPLICATION,
-    id: 'app-0941a',
-    reference: 'LA-2026-0941A',
-    fullName: 'Nakamya Grace',
-    memberId: 'M-8842',
-    applicantType: 'individual',
-    principal: 15_000_000,
-    purpose: 'Expand retail inventory',
-    stage: 'committee',
-    status: 'in_review',
-    verdict: 'APPROVED',
-    dtiNetRatio: 28.5,
-    multiplier: 3.0,
-    committeeVotes: [
-      { id: 'v1', name: 'Chairman', role: 'Chairperson', vote: 'APPROVE' },
-      { id: 'v2', name: 'Sec. General', role: 'Risk Head', vote: 'APPROVE' },
-      { id: 'v3', name: 'Mrs. Nabukenya', role: 'Credit Officer', vote: 'APPROVE' },
-      { id: 'v4', name: 'Dr. Ochieng', role: 'Treasurer', vote: 'ABSTAIN' },
-      { id: 'v5', name: 'Eng. Museveni', role: 'Board Member', vote: 'ABSTAIN' },
-    ],
-  },
-  {
-    ...INITIAL_APPLICATION,
-    id: 'app-0938b',
-    reference: 'LA-2026-0938B',
-    fullName: 'Ssemakula Enterprises Ltd',
-    memberId: 'SME-0412',
-    applicantType: 'cooperative',
-    principal: 42_000_000,
-    purpose: 'Agricultural Processing Equipment',
-    stage: 'committee',
-    status: 'in_review',
-    verdict: 'APPROVED',
-    dtiNetRatio: 34.0,
-    multiplier: 3.5,
-    committeeVotes: [
-      { id: 'v1', name: 'Chairman', role: 'Chairperson', vote: 'APPROVE' },
-      { id: 'v2', name: 'Sec. General', role: 'Risk Head', vote: 'REJECT' },
-      { id: 'v3', name: 'Mrs. Nabukenya', role: 'Credit Officer', vote: 'APPROVE' },
-      { id: 'v4', name: 'Dr. Ochieng', role: 'Treasurer', vote: 'ABSTAIN' },
-      { id: 'v5', name: 'Eng. Museveni', role: 'Board Member', vote: 'ABSTAIN' },
-    ],
-  },
-  {
-    ...INITIAL_APPLICATION,
-    id: 'app-0871e',
-    reference: 'LA-2026-0871E',
-    fullName: 'Mukasa Agro Supplies',
-    memberId: 'SME-0871',
-    applicantType: 'cooperative',
-    principal: 28_000_000,
-    purpose: 'Working Capital & Inventory',
-    stage: 'disbursed',
-    status: 'approved',
-    verdict: 'APPROVED',
-    dtiNetRatio: 22.0,
-    multiplier: 3.0,
-    committeeVotes: [
-      { id: 'v1', name: 'Chairman', role: 'Chairperson', vote: 'APPROVE' },
-      { id: 'v2', name: 'Sec. General', role: 'Risk Head', vote: 'APPROVE' },
-      { id: 'v3', name: 'Mrs. Nabukenya', role: 'Credit Officer', vote: 'APPROVE' },
-      { id: 'v4', name: 'Dr. Ochieng', role: 'Treasurer', vote: 'APPROVE' },
-      { id: 'v5', name: 'Eng. Museveni', role: 'Board Member', vote: 'APPROVE' },
-    ],
-  },
-  {
-    ...INITIAL_APPLICATION,
-    id: 'app-0842f',
-    reference: 'LA-2025-0842F',
-    fullName: 'Namatovu Sarah',
-    memberId: 'M-2309',
-    applicantType: 'individual',
-    principal: 4_000_000,
-    purpose: 'Solar Installation',
-    stage: 'disbursed',
-    status: 'disbursed',
-    verdict: 'APPROVED',
-    dtiNetRatio: 18.5,
-    multiplier: 2.0,
-    committeeVotes: [
-      { id: 'v1', name: 'Chairman', role: 'Chairperson', vote: 'APPROVE' },
-      { id: 'v2', name: 'Sec. General', role: 'Risk Head', vote: 'APPROVE' },
-      { id: 'v3', name: 'Mrs. Nabukenya', role: 'Credit Officer', vote: 'APPROVE' },
-      { id: 'v4', name: 'Dr. Ochieng', role: 'Treasurer', vote: 'APPROVE' },
-      { id: 'v5', name: 'Eng. Museveni', role: 'Board Member', vote: 'ABSTAIN' },
-    ],
-  },
-]
+export const SEED_APPLICATIONS: Application[] = []
 
 export function formatUGX(value: number): string {
   return new Intl.NumberFormat('en-UG', {

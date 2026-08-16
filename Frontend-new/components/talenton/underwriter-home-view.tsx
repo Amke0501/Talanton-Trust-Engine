@@ -11,8 +11,12 @@ export function UnderwriterHomeView({
   applications: Application[]
   onNavigateToApplications: () => void
 }) {
-  const pendingApps = applications.filter((a) => a.stage === 'underwriting')
-  const verifiedApps = applications.filter((a) => a.stage === 'committee' || a.stage === 'disbursed')
+  const pendingApps = applications.filter(
+    (a) => a.status !== 'draft' && a.stage !== 'draft' && a.stage !== 'committee' && a.stage !== 'disbursed'
+  )
+  const verifiedApps = applications.filter(
+    (a) => a.stage === 'committee' || a.stage === 'disbursed' || a.status === 'approved'
+  )
   
   const totalExposure = pendingApps.reduce((acc, app) => acc + (app.principal || 0), 0)
 
