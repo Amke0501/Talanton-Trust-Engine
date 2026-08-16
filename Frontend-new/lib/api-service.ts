@@ -3,6 +3,7 @@ import {
   type ApplicantType,
   type CreditPassportMember,
   INITIAL_APPLICATION,
+  SEED_APPLICATIONS,
   type RoleType,
   SEED_PASSPORT_MEMBERS,
 } from './talenton-data'
@@ -71,7 +72,7 @@ export async function fetchApplications(): Promise<Application[]> {
   } catch (err) {
     console.warn('Backend API connection failed, using local memory state.', err)
   }
-  return [INITIAL_APPLICATION]
+  return SEED_APPLICATIONS
 }
 
 export type CreateLoanApplicationPayload = {

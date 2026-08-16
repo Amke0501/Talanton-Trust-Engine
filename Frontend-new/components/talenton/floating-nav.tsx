@@ -1,14 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { LayoutGrid, FileText, Menu, Settings, UserCircle, X } from 'lucide-react'
+import { LayoutGrid, FileText, Menu, Settings, UserCircle, X, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type NavItem = 'home' | 'applications' | 'settings' | 'profile'
+export type NavItem = 'home' | 'applications' | 'settings' | 'profile' | 'creditors'
 
 const NAV_ITEMS: { id: NavItem; icon: typeof LayoutGrid; label: string }[] = [
   { id: 'home', icon: LayoutGrid, label: 'Home' },
   { id: 'applications', icon: FileText, label: 'Applications' },
+  { id: 'creditors', icon: Users, label: 'Creditors' },
   { id: 'settings', icon: Settings, label: 'Settings' },
   { id: 'profile', icon: UserCircle, label: 'Profile' },
 ]

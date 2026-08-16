@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import {
+  ArrowLeft,
   CheckCircle2,
   Lock,
   Minus,
@@ -20,14 +21,15 @@ import {
   type PortfolioLoan,
 } from '@/lib/talenton-data'
 import { Card, CardBody } from '@/components/talenton/primitives'
-import { CreditPassportPanel } from '@/components/talenton/credit-passport-panel'
 
 export function CommitteeDashboardView({
   application,
   onCastVote,
+  onBack,
 }: {
   application: Application
   onCastVote: (memberRole: string, vote: 'APPROVE' | 'REJECT' | 'ABSTAIN') => void
+  onBack?: () => void
 }) {
   // Board Member Voting State
   const [boardVotes, setBoardVotes] = useState<BoardMemberVote[]>(
@@ -85,69 +87,105 @@ export function CommitteeDashboardView({
   })
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 max-w-6xl mx-auto">
+      
+      {/* Top Bar with Back Button & Breadcrumbs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-2 rounded-full bg-white border border-gray-200 hover:bg-gray-100 text-[#103a27] transition-colors"
+              title="Back to applications list"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-serif font-bold text-[#103a27]">{application.fullName}</h2>
+              <span className="font-mono text-xs bg-[#0d2a1c] text-[#a4cc44] px-2.5 py-0.5 rounded-full font-bold">
+                {application.reference}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Member ID: <strong className="text-gray-700">{application.memberId}</strong> &bull; Purpose: <strong className="text-gray-700">{application.purpose}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+            isQuorumPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {isQuorumPassed ? 'Quorum Passed (Ready for Disbursal)' : 'Quorum Pending (4/5 Required)'}
+          </span>
+        </div>
+      </div>
+
       {/* SECTION 1: COMMITTEE AUTHORIZATION BOARD */}
       <div className="grid gap-6 lg:grid-cols-12">
+        
         {/* Verified Underwriting Stats Freeze Card */}
         <div className="lg:col-span-4">
-          <Card>
-            <CardBody className="space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-border">
-                <ShieldCheck className="size-4 text-[#103a27]" />
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                <ShieldCheck className="size-5 text-[#103a27]" />
                 <h3 className="font-serif text-sm font-bold text-[#103a27]">
                   Verified Underwriting Stats
                 </h3>
               </div>
 
               <div className="space-y-3 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground">Applicant Loan</span>
+                <div className="flex justify-between py-1.5 border-b border-gray-50">
+                  <span className="text-gray-500 font-medium">Applicant Loan</span>
                   <span className="font-mono font-bold text-[#103a27]">{formatUGX(application.principal)}</span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground">DTI Percentage</span>
-                  <span className="font-bold text-[#103a27]">{application.dtiNetRatio?.toFixed(1) || '82.0'}%</span>
+                <div className="flex justify-between py-1.5 border-b border-gray-50">
+                  <span className="text-gray-500 font-medium">DTI Percentage</span>
+                  <span className="font-bold text-[#103a27]">{application.dtiNetRatio?.toFixed(1) || '28.5'}%</span>
                 </div>
-                <div className="flex justify-between py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground">Savings Multiplier</span>
-                  <span className="font-bold text-[#103a27]">{application.multiplier || 3.75}x</span>
+                <div className="flex justify-between py-1.5 border-b border-gray-50">
+                  <span className="text-gray-500 font-medium">Savings Multiplier</span>
+                  <span className="font-bold text-[#103a27]">{application.multiplier || 3.0}x</span>
                 </div>
-                <div className="flex justify-between items-center py-1.5 border-b border-border/50">
-                  <span className="text-muted-foreground">Audit Check Verdict</span>
+                <div className="flex justify-between items-center py-1.5 border-b border-gray-50">
+                  <span className="text-gray-500 font-medium">Audit Check Verdict</span>
                   <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold ${
                     application.verdict === 'APPROVED'
                       ? 'bg-emerald-100 text-emerald-800'
                       : 'bg-rose-100 text-rose-800'
                   }`}>
-                    {application.verdict || 'DECLINED'}
+                    {application.verdict || 'APPROVED'}
                   </span>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-amber-50 p-3 border border-amber-200">
+              <div className="rounded-xl bg-amber-50 p-3.5 border border-amber-200">
                 <p className="text-[0.65rem] text-amber-900 leading-relaxed font-medium">
-                  <strong>Note for Board:</strong> These stats are frozen snapshots from the underwriting phase. Overrides are restricted to appraisal officers.
+                  <strong>Note for Board:</strong> These stats are frozen snapshots from the underwriting audit phase. Overrides are logged with immutable audit trails.
                 </p>
               </div>
             </CardBody>
           </Card>
         </div>
 
-        {/* Committee Board Sign-off Card */}
+        {/* Committee Board Sign-off Card (Who Approved What) */}
         <div className="lg:col-span-8">
-          <Card>
-            <CardBody className="space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
+          <Card className="border-none shadow-sm rounded-2xl bg-white">
+            <CardBody className="p-6 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div>
                   <h3 className="font-serif text-sm font-bold text-[#103a27]">
                     Committee Board Sign-off
                   </h3>
-                  <p className="text-[0.65rem] text-muted-foreground">
-                    Cast individual votes based on risk tolerances and community exposure logs.
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Cast individual votes and override decisions for this application file.
                   </p>
                 </div>
                 <span className="rounded-full bg-[#103a27]/10 px-3 py-1 text-xs font-bold text-[#103a27]">
-                  Board Quorum: 5
+                  Board Quorum: 4 / 5
                 </span>
               </div>
 
@@ -160,11 +198,11 @@ export function CommitteeDashboardView({
                   return (
                     <div
                       key={mem.role}
-                      className="flex flex-col justify-between rounded-2xl border border-border bg-muted/20 p-3 text-center space-y-3"
+                      className="flex flex-col justify-between rounded-2xl border border-gray-100 bg-[#f4f5f4] p-3 text-center space-y-3"
                     >
                       <div>
-                        <p className="text-xs font-bold text-foreground">{mem.name}</p>
-                        <p className="text-[0.65rem] text-muted-foreground">{mem.role}</p>
+                        <p className="text-xs font-bold text-[#103a27]">{mem.name}</p>
+                        <p className="text-[0.65rem] text-gray-500 font-medium">{mem.role}</p>
                       </div>
 
                       {/* Vote Buttons */}
@@ -172,8 +210,9 @@ export function CommitteeDashboardView({
                         <button
                           type="button"
                           onClick={() => handleVoteClick(mem.role, 'APPROVE')}
+                          title="Approve loan"
                           className={`size-7 rounded-full flex items-center justify-center transition-all ${
-                            isApprove ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-muted-foreground hover:bg-emerald-50'
+                            isApprove ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-gray-400 hover:bg-emerald-50 hover:text-emerald-700'
                           }`}
                         >
                           <ThumbsUp className="size-3.5" />
@@ -181,8 +220,9 @@ export function CommitteeDashboardView({
                         <button
                           type="button"
                           onClick={() => handleVoteClick(mem.role, 'REJECT')}
+                          title="Reject loan"
                           className={`size-7 rounded-full flex items-center justify-center transition-all ${
-                            isReject ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-muted-foreground hover:bg-rose-50'
+                            isReject ? 'bg-rose-600 text-white shadow-md' : 'bg-white text-gray-400 hover:bg-rose-50 hover:text-rose-700'
                           }`}
                         >
                           <ThumbsDown className="size-3.5" />
@@ -190,8 +230,9 @@ export function CommitteeDashboardView({
                         <button
                           type="button"
                           onClick={() => handleVoteClick(mem.role, 'ABSTAIN')}
+                          title="Abstain"
                           className={`size-7 rounded-full flex items-center justify-center transition-all ${
-                            isAbstain ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-muted-foreground hover:bg-slate-100'
+                            isAbstain ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-gray-400 hover:bg-slate-100'
                           }`}
                         >
                           <Minus className="size-3.5" />
@@ -211,20 +252,20 @@ export function CommitteeDashboardView({
               </div>
 
               {/* Committee Quorum Outcome Tracker */}
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-[#0d2a1c] p-4 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#0d2a1c] p-4 text-white">
                 <div>
                   <p className="text-xs font-bold text-white">Committee Quorum Outcome Tracker</p>
-                  <p className="text-[0.65rem] text-white/70">
+                  <p className="text-[0.7rem] text-white/70 mt-0.5">
                     {approveCount} Approvals, {rejectCount} Rejections, {abstainCount} Abstentions
                   </p>
                 </div>
 
                 <span
                   className={`rounded-xl px-4 py-2 text-xs font-bold shadow-md ${
-                    isQuorumPassed ? 'bg-emerald-500 text-[#0d2a1c]' : 'bg-rose-600 text-white'
+                    isQuorumPassed ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-rose-600 text-white'
                   }`}
                 >
-                  {isQuorumPassed ? 'BOARD APPROVED' : 'BOARD BLOCKED'}
+                  {isQuorumPassed ? 'BOARD APPROVED (QUORUM PASSED)' : 'QUORUM BLOCKED (NEED 4 APPROVALS)'}
                 </span>
               </div>
             </CardBody>
@@ -233,22 +274,22 @@ export function CommitteeDashboardView({
       </div>
 
       {/* SECTION 2: LOAN PORTFOLIO TRACKER */}
-      <Card>
-        <CardBody className="space-y-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-border">
+      <Card className="border-none shadow-sm rounded-2xl bg-white">
+        <CardBody className="p-6 space-y-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-gray-100">
             <div>
               <h3 className="font-serif text-lg font-bold text-[#103a27]">
                 Loan Portfolio Tracker
               </h3>
-              <p className="text-xs text-muted-foreground">
-                Board-wide oversight of every loan in the pipeline -- approve, reject, and monitor repayment.
+              <p className="text-xs text-gray-500 mt-0.5">
+                Board-wide oversight of every loan in the pipeline — approve, disburse, and monitor repayments.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-[#103a27] px-3.5 py-2 text-white text-xs">
+              <div className="rounded-xl bg-[#0d2a1c] px-3.5 py-2 text-white text-xs">
                 <span className="text-white/60 block text-[0.6rem]">BOOK VALUE</span>
-                <span className="font-mono font-bold text-[#a4cc44]">UGX 42,500,000</span>
+                <span className="font-mono font-bold text-[#a4cc44]">UGX 89,000,000</span>
               </div>
               <div className="rounded-xl bg-rose-950 px-3.5 py-2 text-white text-xs border border-rose-800">
                 <span className="text-rose-300 block text-[0.6rem]">ARREARS</span>
@@ -274,7 +315,7 @@ export function CommitteeDashboardView({
                 className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   portfolioFilter === tab.id
                     ? 'bg-[#103a27] text-white shadow-sm'
-                    : 'bg-muted/40 text-muted-foreground hover:bg-muted'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {tab.label}
@@ -283,9 +324,9 @@ export function CommitteeDashboardView({
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
+              <thead className="bg-[#f4f5f4] font-bold uppercase tracking-wider text-gray-500 border-b border-gray-200">
                 <tr>
                   <th className="p-3">FILE</th>
                   <th className="p-3">BORROWER</th>
@@ -296,29 +337,29 @@ export function CommitteeDashboardView({
                   <th className="p-3 text-right">ACTION</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60 font-medium">
+              <tbody className="divide-y divide-gray-100 font-medium">
                 {filteredLoans.map((loan) => (
-                  <tr key={loan.reference} className="hover:bg-muted/20 transition-colors">
+                  <tr key={loan.reference} className="hover:bg-gray-50 transition-colors">
                     <td className="p-3 font-mono font-bold text-[#103a27]">{loan.reference}</td>
                     <td className="p-3">
-                      <p className="font-bold text-foreground">{loan.borrowerName}</p>
-                      <p className="text-[0.65rem] text-muted-foreground">{loan.borrowerMeta}</p>
+                      <p className="font-bold text-[#103a27]">{loan.borrowerName}</p>
+                      <p className="text-[0.65rem] text-gray-500">{loan.borrowerMeta}</p>
                     </td>
                     <td className="p-3">
-                      <span className="rounded bg-muted px-2 py-0.5 text-[0.65rem] font-bold text-foreground">
+                      <span className="rounded bg-gray-100 px-2 py-0.5 text-[0.65rem] font-bold text-[#103a27]">
                         {loan.type}
                       </span>
                     </td>
-                    <td className="p-3 font-mono font-bold text-foreground">{formatUGX(loan.principal)}</td>
+                    <td className="p-3 font-mono font-bold text-[#103a27]">{formatUGX(loan.principal)}</td>
                     <td className="p-3">
                       {loan.repaymentProgress ? (
                         <div>
-                          <p className="text-xs font-semibold text-foreground">{loan.repaymentProgress}</p>
-                          {loan.dueDate && <p className="text-[0.65rem] text-muted-foreground">{loan.dueDate}</p>}
+                          <p className="text-xs font-semibold text-gray-800">{loan.repaymentProgress}</p>
+                          {loan.dueDate && <p className="text-[0.65rem] text-gray-500">{loan.dueDate}</p>}
                           {loan.arrears && <p className="text-[0.65rem] font-bold text-rose-600">Arrears: {formatUGX(loan.arrears)}</p>}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">---</span>
+                        <span className="text-gray-400">---</span>
                       )}
                     </td>
                     <td className="p-3">
@@ -365,7 +406,7 @@ export function CommitteeDashboardView({
                           Disburse
                         </button>
                       ) : (
-                        <span className="text-muted-foreground flex items-center justify-end gap-1 text-[0.65rem]">
+                        <span className="text-gray-400 flex items-center justify-end gap-1 text-[0.65rem]">
                           <Lock className="size-3" /> Locked
                         </span>
                       )}
@@ -377,8 +418,6 @@ export function CommitteeDashboardView({
           </div>
         </CardBody>
       </Card>
-
-      <CreditPassportPanel />
     </div>
   )
 }

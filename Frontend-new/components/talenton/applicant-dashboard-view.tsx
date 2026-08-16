@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, FileCode, FileText, Send, Sparkles, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, FileText, Send, Sparkles, X, ChevronRight, ChevronLeft, Upload } from 'lucide-react'
 import {
   formatUGX,
   makeDocumentSlots,
@@ -10,27 +10,36 @@ import {
   type ApplicantType,
   type DocumentSlot,
 } from '@/lib/talenton-data'
-import { Card, CardBody } from '@/components/talenton/primitives'
 
 export function ApplicantDashboardView({
   application,
   onUpdateApplication,
   onSubmitToUnderwriter,
+  onClose,
 }: {
   application: Application
   onUpdateApplication: (updated: Partial<Application>) => void
   onSubmitToUnderwriter: () => void
+  onClose?: () => void
 }) {
-  const [classification, setClassification] = useState<ApplicantType>(application.applicantType || 'individual')
-  const [multiplier, setMultiplier] = useState<number>(application.multiplier || 3)
-  const [principal, setPrincipal] = useState<number>(application.principal || 15_000_000)
-  const [savings, setSavings] = useState<number>(application.savingsBalance || 4_000_000)
-  const [monthlyPay, setMonthlyPay] = useState<number>(application.monthlyIncome || 2_500_000)
-  const [monthlyDebt, setMonthlyDebt] = useState<number>(application.monthlyDebt || 500_000)
-  const [tenure, setTenure] = useState<number>(application.tenureMonths || 12)
-  const [documents, setDocuments] = useState<DocumentSlot[]>(application.documents || makeDocumentSlots('individual'))
+  // Step indicator state
+  const [step, setStep] = useState(1)
 
-  const calculatedCap = savingsCap(savings, multiplier)
+  // Empty fields by default for fresh applications (no default values)
+  const [classification, setClassification] = useState<ApplicantType>('individual')
+  const [multiplier, setMultiplier] = useState<number>(3)
+  const [purpose, setPurpose] = useState<string>('')
+  
+  // Numerical fields initialized to empty string '' for empty placeholders
+  const [principal, setPrincipal] = useState<number | ''>('')
+  const [savings, setSavings] = useState<number | ''>('')
+  const [monthlyPay, setMonthlyPay] = useState<number | ''>('')
+  const [monthlyDebt, setMonthlyDebt] = useState<number | ''>('')
+  const [tenure, setTenure] = useState<number | ''>('')
+  
+  const [documents, setDocuments] = useState<DocumentSlot[]>(makeDocumentSlots('individual'))
+
+  const calculatedCap = savingsCap(Number(savings) || 0, multiplier)
   const clearedCount = documents.filter((d) => d.status === 'VERIFIED').length
 
   function handleFieldChange(field: string, val: any) {
@@ -41,21 +50,29 @@ export function ApplicantDashboardView({
     } else if (field === 'multiplier') {
       setMultiplier(val)
       onUpdateApplication({ multiplier: val })
+    } else if (field === 'purpose') {
+      setPurpose(val)
+      onUpdateApplication({ purpose: val })
     } else if (field === 'principal') {
-      setPrincipal(Number(val) || 0)
-      onUpdateApplication({ principal: Number(val) || 0 })
+      const num = val === '' ? '' : Number(val)
+      setPrincipal(num)
+      onUpdateApplication({ principal: Number(num) || 0 })
     } else if (field === 'savings') {
-      setSavings(Number(val) || 0)
-      onUpdateApplication({ savingsBalance: Number(val) || 0 })
+      const num = val === '' ? '' : Number(val)
+      setSavings(num)
+      onUpdateApplication({ savingsBalance: Number(num) || 0 })
     } else if (field === 'monthlyPay') {
-      setMonthlyPay(Number(val) || 0)
-      onUpdateApplication({ monthlyIncome: Number(val) || 0 })
+      const num = val === '' ? '' : Number(val)
+      setMonthlyPay(num)
+      onUpdateApplication({ monthlyIncome: Number(num) || 0 })
     } else if (field === 'monthlyDebt') {
-      setMonthlyDebt(Number(val) || 0)
-      onUpdateApplication({ monthlyDebt: Number(val) || 0 })
+      const num = val === '' ? '' : Number(val)
+      setMonthlyDebt(num)
+      onUpdateApplication({ monthlyDebt: Number(num) || 0 })
     } else if (field === 'tenure') {
-      setTenure(Number(val) || 0)
-      onUpdateApplication({ tenureMonths: Number(val) || 0 })
+      const num = val === '' ? '' : Number(val)
+      setTenure(num)
+      onUpdateApplication({ tenureMonths: Number(num) || 0 })
     }
   }
 
@@ -96,9 +113,9 @@ export function ApplicantDashboardView({
 
   function handleSubmit() {
     const issues: string[] = []
-    if (savings <= 0) issues.push('Savings balance must be greater than 0')
-    if (principal <= 0) issues.push('Loan principal must be greater than 0')
-    if (monthlyPay <= 0) issues.push('Monthly income / net pay must be greater than 0')
+    if (!savings || Number(savings) <= 0) issues.push('Savings balance must be greater than 0')
+    if (!principal || Number(principal) <= 0) issues.push('Loan principal must be greater than 0')
+    if (!monthlyPay || Number(monthlyPay) <= 0) issues.push('Monthly income / net pay must be greater than 0')
     const mandatoryUncleared = documents.filter((d) => d.required && d.status !== 'VERIFIED')
     if (mandatoryUncleared.length > 0) {
       issues.push(`${mandatoryUncleared.length} mandatory document(s) not yet verified: ${mandatoryUncleared.map(d => d.label).join(', ')}`)
@@ -110,263 +127,303 @@ export function ApplicantDashboardView({
     onSubmitToUnderwriter()
   }
 
+  // Determine card background based on step
+  const cardBgClass = step === 3 ? 'bg-[#0d2a1c]' : 'bg-white'
+  const cardBorderClass = step === 3 ? 'border-white/10' : 'border-gray-200'
+
   return (
-    <div className="grid gap-6 lg:grid-cols-12">
-      {/* LEFT COLUMN: Entry Form & OCR Extractor */}
-      <div className="space-y-6 lg:col-span-7">
-        {/* Direct Applicant Entry */}
-        <Card>
-          <CardBody className="space-y-5">
-            <div className="flex items-center gap-2 pb-3 border-b border-border">
-              <FileText className="size-5 text-[#103a27]" />
-              <h3 className="font-serif text-lg font-bold text-[#103a27]">
-                1. Direct Applicant Entry
-              </h3>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  BORROWER CLASSIFICATION
-                </label>
-                <select
-                  value={classification}
-                  onChange={(e) => handleFieldChange('classification', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-semibold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                >
-                  <option value="individual">BOSA Member (Savings Anchor)</option>
-                  <option value="cooperative">Cooperative / SME</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  DESIRED CAPITAL MULTIPLIER
-                </label>
-                <select
-                  value={multiplier}
-                  onChange={(e) => handleFieldChange('multiplier', Number(e.target.value))}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-semibold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                >
-                  <option value={2}>2x Savings Balance</option>
-                  <option value={3}>3x Savings Balance</option>
-                  <option value={4}>4x Savings Balance</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                REQUESTED LOAN PRINCIPAL (UGX)
-              </label>
-              <input
-                type="number"
-                value={principal}
-                onChange={(e) => handleFieldChange('principal', e.target.value)}
-                className="w-full rounded-xl border border-border bg-white p-3 text-base font-bold text-[#103a27] shadow-sm focus:border-[#103a27] focus:outline-none"
-              />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  CURRENT MEMBER SAVINGS BALANCE (UGX)
-                </label>
-                <input
-                  type="number"
-                  value={savings}
-                  onChange={(e) => handleFieldChange('savings', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-bold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  CERTIFIED MONTHLY REVENUE / NET PAY (UGX)
-                </label>
-                <input
-                  type="number"
-                  value={monthlyPay}
-                  onChange={(e) => handleFieldChange('monthlyPay', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-bold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  EXISTING MONTHLY DEBT DEDUCTIONS (UGX)
-                </label>
-                <input
-                  type="number"
-                  value={monthlyDebt}
-                  onChange={(e) => handleFieldChange('monthlyDebt', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-bold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  AMORTIZATION TENURE (MONTHS)
-                </label>
-                <input
-                  type="number"
-                  value={tenure}
-                  onChange={(e) => handleFieldChange('tenure', e.target.value)}
-                  className="w-full rounded-xl border border-border bg-white p-3 text-sm font-bold text-foreground shadow-sm focus:border-[#103a27] focus:outline-none"
-                />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* OCR Statement Extraction Simulator */}
-        <Card className="border border-emerald-500/20 bg-emerald-950/5">
-          <CardBody className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="size-4 text-emerald-600" />
-                <h4 className="font-serif text-sm font-bold text-[#103a27]">
-                  OCR Statement Extraction
-                </h4>
-              </div>
-              <span className="text-[0.65rem] font-bold uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
-                AI Document Extraction
-              </span>
-            </div>
-
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Don't want to type finances manually? Choose a sample file to parse payslips and bank balances instantly.
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={() => handleOCRSimulate('salary')}
-                className="flex flex-col text-left rounded-xl border border-border bg-white p-3 shadow-sm hover:border-[#103a27] transition-all hover:bg-[#eaf4e5]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#103a27]">Salary Slip</span>
-                  <FileText className="size-3.5 text-muted-foreground" />
-                </div>
-                <span className="mt-1 text-[0.65rem] text-muted-foreground">
-                  Simulate parsing high payroll data
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleOCRSimulate('sme')}
-                className="flex flex-col text-left rounded-xl border border-border bg-white p-3 shadow-sm hover:border-[#103a27] transition-all hover:bg-[#eaf4e5]"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#103a27]">SME Statements</span>
-                  <FileCode className="size-3.5 text-muted-foreground" />
-                </div>
-                <span className="mt-1 text-[0.65rem] text-muted-foreground">
-                  Simulate parsing business flows
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleOCRSimulate('high_risk')}
-                className="flex flex-col text-left rounded-xl border border-border bg-white p-3 shadow-sm hover:border-amber-500 transition-all hover:bg-amber-50"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-900">High Risk Profile</span>
-                  <AlertTriangle className="size-3.5 text-amber-600" />
-                </div>
-                <span className="mt-1 text-[0.65rem] text-amber-800/80">
-                  Simulate poor DTI ratios
-                </span>
-              </button>
-            </div>
-            <p className="text-[0.65rem] text-muted-foreground text-right">
-              Powered by Talanton OCR Core API. Max file payload size: 8MB.
-            </p>
-          </CardBody>
-        </Card>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#eaf4e5] flex flex-col font-sans relative">
+      
+      {/* Background Faint City Skyline Drawing */}
+      <div className="absolute bottom-0 left-0 right-0 h-48 opacity-[0.06] pointer-events-none z-0">
+        <svg viewBox="0 0 1200 200" fill="none" stroke="#103a27" strokeWidth="2.5" className="w-full h-full object-cover">
+          <path d="M0,180 L80,180 L80,110 L120,110 L120,150 L160,150 L160,80 L200,80 L200,180 L250,180 L250,130 L290,130 L290,180 L350,180 L350,90 L400,90 L400,140 L430,140 L430,180 L500,180 L500,60 L540,60 L540,110 L580,110 L580,180 L620,180 L620,120 L660,120 L660,180 L720,180 L720,70 L770,70 L770,180 L830,180 L830,100 L880,100 L880,150 L910,150 L910,180 L980,180 L980,50 L1020,50 L1020,130 L1060,130 L1060,180 L1120,180 L1120,110 L1160,110 L1160,180 L1200,180" />
+          <line x1="0" y1="180" x2="1200" y2="180" />
+          <path d="M100,50 Q250,20 400,60 T700,30 T1000,70" strokeDasharray="5,5" />
+          <path d="M150,100 Q300,70 450,110 T750,80 T1050,120" strokeDasharray="5,5" />
+        </svg>
       </div>
 
-      {/* RIGHT COLUMN: Checklist, BOSA Cap & Submit CTA */}
-      <div className="space-y-6 lg:col-span-5">
-        {/* Document Clearance Checklist */}
-        <Card>
-          <CardBody className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <h3 className="font-serif text-sm font-bold text-[#103a27]">
-                Document Clearance Checklist
-              </h3>
-              <span className="rounded-full bg-[#103a27]/10 px-2.5 py-0.5 text-xs font-bold text-[#103a27]">
-                {clearedCount} / {documents.length} Cleared
-              </span>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Verify required local compliance uploads. All mandatory slots must be cleared to pass underwriting.
-            </p>
-
-            <div className="space-y-3">
-              {documents.map((doc) => {
-                const isVerified = doc.status === 'VERIFIED'
-                return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between rounded-xl border border-border/80 bg-muted/20 p-3"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <FileText className="size-4 shrink-0 text-[#103a27] mt-0.5" />
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{doc.label}</p>
-                        <p className="text-[0.65rem] text-muted-foreground">{doc.hint}</p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleDocumentStatus(doc.id)}
-                      className="shrink-0"
-                    >
-                      {isVerified ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-[0.65rem] font-bold text-emerald-800">
-                          <CheckCircle2 className="size-3" />
-                          VERIFIED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-[0.65rem] font-bold text-amber-800 hover:bg-amber-200 transition-colors">
-                          PENDING — UPLOAD NOW
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* BOSA Cap Estimate Box */}
-        <div className="rounded-2xl bg-[#0d2a1c] p-6 text-white shadow-lg space-y-2 border border-white/10">
-          <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[#a4cc44]">
-            <span>BOSA CAP ESTIMATE</span>
-            <span className="font-mono text-lg text-white font-bold">{formatUGX(calculatedCap)}</span>
+      {/* Sticky Dark Green Header Row */}
+      <div className="bg-[#0d2a1c] border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-md text-white">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-white/10 text-white font-bold shadow-sm">
+            T.
+          </span>
+          <div>
+            <h2 className="font-serif text-xl font-extrabold text-white">New Credit Application</h2>
+            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44]">SACCO Appraisals</p>
           </div>
-          <p className="text-xs text-white/70">
-            Based on your savings anchor and selected multiplier.
-          </p>
         </div>
 
-        {/* Submit to Underwriter Button */}
+        {/* Step progress indicators in header */}
+        <div className="flex items-center gap-4 text-xs font-semibold text-gray-300">
+          <div className={`flex items-center gap-2 ${step >= 1 ? 'text-white font-bold' : 'text-gray-400'}`}>
+            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 1 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>1</span>
+            Profile
+          </div>
+          <div className="h-px w-8 bg-white/10" />
+          <div className={`flex items-center gap-2 ${step >= 2 ? 'text-white font-bold' : 'text-gray-400'}`}>
+            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 2 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>2</span>
+            Finances
+          </div>
+          <div className="h-px w-8 bg-white/10" />
+          <div className={`flex items-center gap-2 ${step >= 3 ? 'text-white font-bold' : 'text-gray-400'}`}>
+            <span className={`size-5 rounded-full flex items-center justify-center text-[0.65rem] ${step >= 3 ? 'bg-[#a4cc44] text-[#0d2a1c]' : 'bg-white/10'}`}>3</span>
+            Documents
+          </div>
+        </div>
+
+        {/* Close Button X */}
         <button
           type="button"
-          onClick={handleSubmit}
-          className="w-full flex items-center justify-center gap-3 rounded-full bg-[#103a27] py-4 text-sm font-bold text-white shadow-xl hover:bg-[#1a5235] transition-all hover:scale-[1.01]"
+          onClick={onClose}
+          className="p-2 rounded-full hover:bg-white/10 text-gray-300 hover:text-white transition-colors cursor-pointer"
+          aria-label="Close form"
         >
-          <Send className="size-4" />
-          Submit to Underwriter
+          <X className="size-6" />
         </button>
+      </div>
+
+      {/* Main Centered Box Container */}
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12 z-10">
+        <div className={`max-w-2xl w-full rounded-2xl border shadow-sm overflow-hidden flex flex-col transition-all ${cardBgClass} ${cardBorderClass}`}>
+          
+          {/* Card Body - Edit blocks directly (no title headers here) */}
+          <div className={`p-6 md:p-8 space-y-6 flex-1 ${cardBgClass}`}>
+            
+            {/* STEP 1: Profile (Edit blocks only) */}
+            {step === 1 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Applicant Classification</label>
+                    <select
+                      value={classification}
+                      onChange={(e) => handleFieldChange('classification', e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all"
+                    >
+                      <option value="individual">BOSA Member (Savings Anchor)</option>
+                      <option value="cooperative">Cooperative / SME</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Desired Capital Multiplier</label>
+                    <select
+                      value={multiplier}
+                      onChange={(e) => handleFieldChange('multiplier', Number(e.target.value))}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all"
+                    >
+                      <option value={2}>2x Savings Balance</option>
+                      <option value={3}>3x Savings Balance</option>
+                      <option value={4}>4x Savings Balance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Purpose of Financing</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Working capital, Expand business operations"
+                    value={purpose}
+                    onChange={(e) => handleFieldChange('purpose', e.target.value)}
+                    className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#103a27] transition-all"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Finances (Edit blocks only) */}
+            {step === 2 && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="space-y-2">
+                  <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Requested Loan Principal (UGX)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 15,000,000"
+                    value={principal}
+                    onChange={(e) => handleFieldChange('principal', e.target.value)}
+                    className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-lg font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
+                  />
+                </div>
+
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Current Savings Balance (UGX)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 4,000,000"
+                      value={savings}
+                      onChange={(e) => handleFieldChange('savings', e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Certified Monthly Revenue (UGX)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 2,500,000"
+                      value={monthlyPay}
+                      onChange={(e) => handleFieldChange('monthlyPay', e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Monthly Debt Deductions (UGX)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 500,000"
+                      value={monthlyDebt}
+                      onChange={(e) => handleFieldChange('monthlyDebt', e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-500">Amortization Tenure (Months)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 12"
+                      value={tenure}
+                      onChange={(e) => handleFieldChange('tenure', e.target.value)}
+                      className="w-full rounded-none border-0 border-b-2 border-gray-300 bg-transparent py-2 text-sm font-bold text-gray-800 focus:outline-none focus:border-[#103a27] transition-all font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Compliance & Submission (Dark Green Layout) */}
+            {step === 3 && (
+              <div className="space-y-6 animate-fadeIn text-white">
+                
+                {/* Document Slots checklist */}
+                <div className="space-y-3">
+                  <label className="text-[0.7rem] font-bold uppercase tracking-wider text-[#a4cc44] block mb-2">Verify Required Slots</label>
+                  <div className="space-y-3">
+                    {documents.map((doc) => {
+                      const isVerified = doc.status === 'VERIFIED'
+                      return (
+                        <div key={doc.id} className="flex items-center justify-between p-3.5 rounded-xl border border-white/10 bg-white/5">
+                          <div className="flex items-start gap-3">
+                            <FileText className="size-5 text-[#a4cc44] mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-white">{doc.label}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{doc.hint}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleDocumentStatus(doc.id)}
+                            className="shrink-0 cursor-pointer text-sm"
+                          >
+                            {isVerified ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-300 border border-emerald-500/30">
+                                <CheckCircle2 className="size-4" />
+                                Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#a4cc44] px-3 py-1.5 text-xs font-bold text-[#0d2a1c] hover:bg-[#b5dc55] transition-colors shadow-sm">
+                                <Upload className="size-3.5" />
+                                Upload
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* OCR & BOSA Estimate Combined */}
+                <div className="grid gap-5 sm:grid-cols-2 pt-2">
+                  {/* OCR Simulator */}
+                  <div className="rounded-xl border border-white/10 p-4 space-y-3 bg-white/5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="size-4 text-[#a4cc44]" />
+                      <h4 className="text-xs font-bold text-gray-200">OCR Statements</h4>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOCRSimulate('salary')}
+                        className="text-left w-full rounded-lg border border-white/10 bg-transparent p-2.5 hover:border-[#a4cc44] hover:bg-white/10 text-xs font-semibold text-gray-300 cursor-pointer transition-all"
+                      >
+                        Salary Slip
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOCRSimulate('sme')}
+                        className="text-left w-full rounded-lg border border-white/10 bg-transparent p-2.5 hover:border-[#a4cc44] hover:bg-white/10 text-xs font-semibold text-gray-300 cursor-pointer transition-all"
+                      >
+                        SME Statement
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* BOSA Estimate */}
+                  <div className="rounded-xl border border-[#a4cc44]/30 bg-[#a4cc44]/10 p-5 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[0.65rem] font-bold uppercase tracking-wider text-[#a4cc44] block">BOSA Cap Estimate</span>
+                      <p className="text-2xl font-extrabold text-white mt-1.5 font-mono">{formatUGX(calculatedCap)}</p>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-4 leading-snug">
+                      Multiplier value selected in Step 1.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Centered Modal Footer Navigation Bar */}
+          <div className={`border-t px-6 py-4 flex items-center justify-between ${step === 3 ? 'border-white/10 bg-black/20' : 'border-gray-200 bg-gray-50/50'}`}>
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={() => setStep(prev => prev - 1)}
+                className={`flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+                  step === 3 
+                    ? 'border-white/20 text-white hover:bg-white/10' 
+                    : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-100'
+                }`}
+              >
+                <ChevronLeft className="size-4" />
+                Back
+              </button>
+            ) : (
+              <div />
+            )}
+
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={() => setStep(prev => prev + 1)}
+                className="flex items-center gap-1.5 rounded-xl bg-[#0d2a1c] hover:bg-[#153e2a] text-white px-5 py-2.5 text-xs font-bold shadow-md transition-all cursor-pointer ml-auto"
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="flex items-center gap-2 rounded-xl bg-[#a4cc44] hover:bg-[#b5dc55] text-[#0d2a1c] px-6 py-2.5 text-sm font-bold shadow-md transition-all cursor-pointer ml-auto"
+              >
+                <Send className="size-4" />
+                Submit Application
+              </button>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   )

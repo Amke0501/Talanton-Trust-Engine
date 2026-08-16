@@ -12,14 +12,32 @@ import {
   type RoleType,
 } from '@/lib/talenton-data'
 import { ApplicantDashboardView } from '@/components/talenton/applicant-dashboard-view'
+import { ApplicantDashboard } from '@/components/talenton/applicant-dashboard'
+import { LoanApplicationsList } from '@/components/talenton/loan-applications-list'
+import { DocumentsView } from '@/components/talenton/documents-view'
+import { ApplicantSidebar, type SidebarSection } from '@/components/talenton/applicant-sidebar'
 import { CommitteeDashboardView } from '@/components/talenton/committee-dashboard-view'
 import { FloatingNav, type NavItem } from '@/components/talenton/floating-nav'
 import { RoleHeader } from '@/components/talenton/role-header'
 import { UnderwriterDashboardView } from '@/components/talenton/underwriter-dashboard-view'
+import { UnderwriterHomeView } from '@/components/talenton/underwriter-home-view'
+import { UnderwriterLoansList } from '@/components/talenton/underwriter-loans-list'
+import { UnderwriterSidebar } from '@/components/talenton/underwriter-sidebar'
+import { CommitteeSidebar } from '@/components/talenton/committee-sidebar'
+import { CommitteeHomeView } from '@/components/talenton/committee-home-view'
+import { CommitteeLoansList } from '@/components/talenton/committee-loans-list'
+import { CreditPassportPanel } from '@/components/talenton/credit-passport-panel'
+import { USER_EMAIL_COOKIE_NAME } from '@/lib/role-access'
 
 export function DashboardRolePage({ role }: { role: RoleType }) {
   const [application, setApplication] = useState<Application>(INITIAL_APPLICATION)
+  const [applications, setApplications] = useState<Application[]>([INITIAL_APPLICATION])
   const [loading, setLoading] = useState(false)
+  const [activeSection, setActiveSection] = useState<SidebarSection>('applicant-dashboard')
+  const [activeNav, setActiveNav] = useState<NavItem>('home')
+  const [activeUnderwriterAudit, setActiveUnderwriterAudit] = useState<boolean>(false)
+  const [activeCommitteeReview, setActiveCommitteeReview] = useState<boolean>(false)
+  const [userName, setUserName] = useState('Amina K.')
 
   useEffect(() => {
     async function loadData() {
@@ -27,10 +45,21 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
       const apps = await fetchApplications()
       if (apps && apps.length > 0) {
         setApplication(apps[0])
+        setApplications(apps)
       }
       setLoading(false)
     }
     loadData()
+
+    // Read user name from cookie
+    const raw = document.cookie
+      .split('; ')
+      .find((r) => r.startsWith(USER_EMAIL_COOKIE_NAME + '='))
+    if (raw) {
+      const email = decodeURIComponent(raw.split('=')[1] || '')
+      const name = email.split('@')[0].replace(/[._]/g, ' ')
+      if (name) setUserName(name.charAt(0).toUpperCase() + name.slice(1))
+    }
   }, [])
 
   function handleUpdateApplication(updated: Partial<Application>) {
@@ -85,14 +114,16 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
       }
       return
     }
-
+    setActiveNav(item)
+    setActiveUnderwriterAudit(false)
+    setActiveCommitteeReview(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const roleTitles: Record<RoleType, { title: string; subtitle: string }> = {
     applicant: {
-      title: 'Borrower Request Pipeline',
-      subtitle: 'Configure financial variables, upload required logs, and coordinate risk authorizations.',
+      title: 'Applicant Request Pipeline',
+      subtitle: 'Track, verify and manage borrower requests from submission to disbursement.',
     },
     underwriter: {
       title: 'Trust Audit',
@@ -119,75 +150,191 @@ export function DashboardRolePage({ role }: { role: RoleType }) {
 
     if (role === 'underwriter') {
       return {
-        active: 'home' as NavItem,
-        allowedItems: ['home', 'applications', 'profile'] as NavItem[],
+        active: activeNav,
+        allowedItems: ['home', 'applications', 'creditors', 'profile'] as NavItem[],
         labels: {
-          home: 'Underwriter Dashboard',
+          home: 'Dashboard',
           applications: 'Loan Reviews',
+          creditors: 'Creditors',
           profile: 'Credit Passport',
         },
       }
     }
 
     return {
-      active: 'home' as NavItem,
-      allowedItems: ['home', 'settings', 'profile'] as NavItem[],
+      active: activeNav,
+      allowedItems: ['home', 'applications', 'creditors'] as NavItem[],
       labels: {
-        home: 'Committee Dashboard',
-        settings: 'Committee Approval',
-        profile: 'Credit Passport',
+        home: 'Dashboard',
+        applications: 'Loan Reviews',
+        creditors: 'Credit Passport',
       },
     }
-  }, [role])
+  }, [role, activeNav])
 
-  return (
-    <div className="min-h-screen bg-[#eaf4e5] pb-24 text-foreground font-sans">
-      <div className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
-        <RoleHeader
-          activeRole={role}
-          currentStage={application.stage}
-          fileReference={application.reference}
-          title={roleTitles[role].title}
-          subtitle={roleTitles[role].subtitle}
-          showRoleSwitcher={false}
+  /* ── Applicant: sidebar + clean page layout ────────── */
+  if (role === 'applicant') {
+    if (activeSection === 'pipeline') {
+      return (
+        <ApplicantDashboardView
+          application={application}
+          onUpdateApplication={handleUpdateApplication}
+          onSubmitToUnderwriter={handleSubmitToUnderwriter}
+          onClose={() => setActiveSection('applicant-dashboard')}
         />
+      )
+    }
+
+    return (
+      <div className="flex min-h-screen text-foreground font-sans">
+        <ApplicantSidebar
+          active={activeSection}
+          userName={userName}
+          onNavigate={setActiveSection}
+        />
+
+        {/* Main content — white background */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f4f5f4]">
+
+          {/* Main content area */}
+          <main className="flex-1 px-6 pt-6 pb-10">
+            {activeSection === 'applicant-dashboard' ? (
+              <ApplicantDashboard
+                userName={userName}
+                applications={applications}
+                onNew={() => setActiveSection('pipeline')}
+              />
+            ) : activeSection === 'loan-applications' ? (
+              <LoanApplicationsList
+                applications={applications}
+                onNew={() => setActiveSection('pipeline')}
+              />
+            ) : activeSection === 'documents' ? (
+              <DocumentsView
+                application={application}
+                onUpdateDocuments={(docs) => handleUpdateApplication({ documents: docs })}
+              />
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-150 p-8 text-center text-sm text-muted-foreground shadow-sm">
+                <p className="font-semibold text-[#103a27] text-base mb-1">Section Coming Soon</p>
+                This part of the workspace is currently under development.
+              </div>
+            )}
+            {loading && (
+              <p className="mt-4 text-sm text-muted-foreground">Loading latest application data...</p>
+            )}
+          </main>
+        </div>
       </div>
+    )
+  }
 
-      <main className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
-        {role === 'applicant' && (
-          <ApplicantDashboardView
-            application={application}
-            onUpdateApplication={handleUpdateApplication}
-            onSubmitToUnderwriter={handleSubmitToUnderwriter}
-          />
-        )}
+  /* ── Underwriter / Committee: Layouts ──── */
+  if (role === 'underwriter') {
+    return (
+      <div className="flex min-h-screen text-foreground font-sans">
+        <UnderwriterSidebar
+          active={activeNav}
+          userName={userName}
+          onNavigate={handleNavNavigate}
+        />
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f4f5f4]">
+          <main className="flex-1 px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6 pb-10 overflow-y-auto max-h-screen">
+            {activeNav === 'home' && !activeUnderwriterAudit && (
+              <UnderwriterHomeView 
+                applications={applications} 
+                onNavigateToApplications={() => setActiveNav('applications')} 
+              />
+            )}
+            {activeNav === 'applications' && !activeUnderwriterAudit && (
+              <UnderwriterLoansList 
+                applications={applications} 
+                onSelectApplication={(app) => {
+                  setApplication(app)
+                  setActiveUnderwriterAudit(true)
+                }} 
+              />
+            )}
+            {activeNav === 'creditors' && !activeUnderwriterAudit && (
+              <div className="pt-2">
+                <CreditPassportPanel />
+              </div>
+            )}
+            {activeUnderwriterAudit && (
+              <UnderwriterDashboardView
+                application={application}
+                onUpdateApplication={handleUpdateApplication}
+                onRouteToCommittee={handleRouteToCommittee}
+              />
+            )}
+            {loading && (
+              <p className="mt-4 text-sm text-muted-foreground">Loading latest application data...</p>
+            )}
+          </main>
+        </div>
+      </div>
+    )
+  }
 
-        {role === 'underwriter' && (
-          <UnderwriterDashboardView
-            application={application}
-            onUpdateApplication={handleUpdateApplication}
-            onRouteToCommittee={handleRouteToCommittee}
-          />
-        )}
+  // Committee Layout
+  if (role === 'committee') {
+    return (
+      <div className="flex min-h-screen text-foreground font-sans">
+        <CommitteeSidebar
+          active={activeNav}
+          userName={userName}
+          onNavigate={handleNavNavigate}
+        />
+        <div className="flex-1 flex flex-col min-w-0 bg-[#f4f5f4]">
+          <main className="flex-1 px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6 pb-10 overflow-y-auto max-h-screen">
+            {activeNav === 'home' && !activeCommitteeReview && (
+              <CommitteeHomeView
+                applications={applications}
+                onNavigateToApplications={() => {
+                  setActiveNav('applications')
+                  setActiveCommitteeReview(false)
+                }}
+                onSelectApplication={(app) => {
+                  setApplication(app)
+                  setActiveNav('applications')
+                  setActiveCommitteeReview(true)
+                }}
+              />
+            )}
+            {activeNav === 'applications' && !activeCommitteeReview && (
+              <CommitteeLoansList
+                applications={applications}
+                onSelectApplication={(app) => {
+                  setApplication(app)
+                  setActiveCommitteeReview(true)
+                }}
+              />
+            )}
+            {activeNav === 'creditors' && !activeCommitteeReview && (
+              <div className="pt-2">
+                <CreditPassportPanel />
+              </div>
+            )}
+            {activeCommitteeReview && (
+              <CommitteeDashboardView
+                application={application}
+                onCastVote={handleCastVote}
+                onBack={() => setActiveCommitteeReview(false)}
+              />
+            )}
+            {loading && (
+              <p className="mt-4 text-sm text-muted-foreground">Loading latest application data...</p>
+            )}
+          </main>
+        </div>
+      </div>
+    )
+  }
 
-        {role === 'committee' && (
-          <CommitteeDashboardView
-            application={application}
-            onCastVote={handleCastVote}
-          />
-        )}
-
-        {loading && (
-          <p className="mt-4 text-sm text-muted-foreground">Loading latest application data...</p>
-        )}
-      </main>
-
-      <FloatingNav
-        active={navConfig.active}
-        onNavigate={handleNavNavigate}
-        allowedItems={navConfig.allowedItems}
-        labelOverrides={navConfig.labels}
-      />
+  // Fallback for any unknown roles
+  return (
+    <div className="min-h-screen bg-[#eaf4e5] pb-24 text-foreground font-sans flex items-center justify-center">
+      <p className="text-xl font-medium text-[#103a27]">Role view not found.</p>
     </div>
   )
 }
